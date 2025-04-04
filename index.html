@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Volcán Pixel Art - Versión Demoníaca Mejorada</title>
+  <title>Volcán Pixel Art - Versión Demoníaca Mejorada (Móvil y Efectos)</title>
   <style>
     html, body {
       margin: 0;
@@ -24,25 +24,57 @@
   const slowFactor = 0.15;
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
-
+  
   // Canvas offscreen para efecto pixel art
   const offCanvas = document.createElement("canvas");
   offCanvas.width = 320;
   offCanvas.height = 180;
   const offCtx = offCanvas.getContext("2d");
   offCtx.imageSmoothingEnabled = false;
-
+  
   function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
   window.addEventListener("resize", resize);
   resize();
-
+  
   const groundHeight = 15;
   let gameOver = false;
   let frameCount = 0;
-
+  
+  // ----- DETECCIÓN DE MÓVIL Y VARIABLES DE CONTROL TÁCTIL -----
+  const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  // Para control táctil, se usará la variable mobileDir (dirección cardinal)
+  let mobileDir = { x: 0, y: 0 };
+  let touchStartX = 0, touchStartY = 0;
+  
+  if(isMobile) {
+    canvas.addEventListener("touchstart", function(e) {
+      e.preventDefault();
+      let touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    }, {passive:false});
+    canvas.addEventListener("touchmove", function(e) {
+      e.preventDefault();
+      let touch = e.touches[0];
+      let dx = touch.clientX - touchStartX;
+      let dy = touch.clientY - touchStartY;
+      let threshold = 20;
+      // Se determina la dirección predominante (cardinal)
+      if(Math.abs(dx) > Math.abs(dy)) {
+        mobileDir = (dx > threshold) ? {x:1, y:0} : (dx < -threshold ? {x:-1, y:0} : {x:0, y:0});
+      } else {
+        mobileDir = (dy > threshold) ? {x:0, y:1} : (dy < -threshold ? {x:0, y:-1} : {x:0, y:0});
+      }
+    }, {passive:false});
+    canvas.addEventListener("touchend", function(e) {
+      e.preventDefault();
+      mobileDir = {x:0, y:0};
+    }, {passive:false});
+  }
+  
   // ----- POOL DE OBJETOS (para partículas, aves y rayos) -----
   class ObjectPool {
     constructor(createFunc) {
@@ -52,9 +84,7 @@
     get(...args) {
       if(this.pool.length > 0) {
         let obj = this.pool.pop();
-        if(typeof obj.reset === 'function') {
-          obj.reset(...args);
-        }
+        if(typeof obj.reset === 'function') { obj.reset(...args); }
         return obj;
       } else {
         return this.createFunc(...args);
@@ -64,14 +94,14 @@
       this.pool.push(obj);
     }
   }
-
+  
   const interiorSmokePool = new ObjectPool((x,y) => new InteriorSmoke(x,y));
   const lavaParticlePool = new ObjectPool((x,y) => new LavaParticle(x,y));
   const riverLavaPool = new ObjectPool((x,y,vx,vy) => new RiverLavaParticle(x,y,vx,vy));
   const centralRiverLavaPool = new ObjectPool((x,y,vx,vy) => new CentralRiverLavaParticle(x,y,vx,vy));
   const lightningPool = new ObjectPool((x,y,isThick) => new Lightning(x,y,isThick));
   const birdPool = new ObjectPool((x,y,vx,color) => new Bird(x,y,vx,color));
-
+  
   // ----- VARIABLES GLOBALES DEL JUEGO -----
   let interiorSmokeParticles = [];
   let lavaParticles = [];
@@ -82,29 +112,26 @@
   let birds = [];
   let monsters = [];
   let stars = [];
-
-  // Jugadores (hasta 2)
-  let playerBird, playerBird2;
-
-  // Contador para spawn de monstruos (para crear supermonstruo cada 15)
+  
+  // Jugador (único en móvil)
+  let playerBird, playerBird2 = null;
+  
+  // Contador para spawn de monstruos (cada 15 normales se genera uno super)
   let monsterSpawnCounter = 0;
-
-  // ----- CONTROLES -----
+  
+  // ----- CONTROLES DE TECLADO (solo en no-móvil) -----
   const keys = {};
   window.addEventListener("keydown", e => {
     keys[e.key] = true;
-    // Si se pulsa "w", y no existe el segundo jugador, se crea
-    if(e.key === "w" && !playerBird2 && !gameOver) {
+    // Permitir dos jugadores sólo en escritorio
+    if(!isMobile && e.key === "w" && !playerBird2 && !gameOver) {
       playerBird2 = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "wasd");
     }
-    // Reiniciar juego con ESPACIO en GAME OVER
-    if(gameOver && e.key === " ") {
-      initGame();
-    }
+    if(gameOver && e.key === " ") { initGame(); }
   });
   window.addEventListener("keyup", e => { keys[e.key] = false; });
-
-  // ----- EFECTOS SONOROS (base64 dummy: reemplaza por sonidos reales si lo deseas) -----
+  
+  // ----- EFECTOS SONOROS (datos base64 de ejemplo; sustituir por sonidos reales) -----
   const dummySound = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZGF0YRoAAAAA";
   const victorySound = new Audio(dummySound);
   const lightningSound = new Audio(dummySound);
@@ -112,8 +139,8 @@
   const monsterCollisionSound = new Audio(dummySound);
   const gameOverSound = new Audio(dummySound);
   const healingSound = new Audio(dummySound);
-
-  // ----- CLASES CON POOL (se añade método reset para reciclar) -----
+  
+  // ----- CLASES CON POOL (cada una con método reset para reciclar) -----
   class InteriorSmoke {
     constructor(x, y) { this.reset(x,y); }
     reset(x, y) {
@@ -136,7 +163,7 @@
       ctx.fillRect(Math.round(this.x), Math.round(this.y), 2, 2);
     }
   }
-
+  
   class LavaParticle {
     constructor(x, y) { this.reset(x,y); }
     reset(x, y) {
@@ -158,7 +185,7 @@
       ctx.fillRect(Math.round(this.x), Math.round(this.y), 1, 1);
     }
   }
-
+  
   class RiverLavaParticle {
     constructor(x, y, vx, vy) { this.reset(x,y,vx,vy); }
     reset(x, y, vx, vy) {
@@ -180,7 +207,7 @@
       ctx.fillRect(Math.round(this.x), Math.round(this.y), 3, 3);
     }
   }
-
+  
   class CentralRiverLavaParticle {
     constructor(x, y, vx, vy) { this.reset(x,y,vx,vy); }
     reset(x, y, vx, vy) {
@@ -210,7 +237,7 @@
       ctx.fillRect(Math.round(this.x), Math.round(this.y), 3, 3);
     }
   }
-
+  
   class Lightning {
     constructor(x, y, isThick) { this.reset(x,y,isThick); }
     reset(x, y, isThick) {
@@ -228,9 +255,7 @@
         currentY = nextY;
       }
     }
-    update() {
-      this.life--;
-    }
+    update() { this.life--; }
     draw(ctx) {
       ctx.strokeStyle = "white";
       ctx.lineWidth = this.isThick ? 2 : 1;
@@ -242,7 +267,7 @@
       ctx.stroke();
     }
   }
-
+  
   class Bird {
     constructor(x, y, vx, color = "white") { this.reset(x,y,vx,color); }
     reset(x, y, vx, color = "white") {
@@ -263,9 +288,7 @@
       } else {
         this.x += this.vx;
         this.wingPhase += 0.2;
-        if (this.x > offCanvas.width + 10) {
-          this.x = -10;
-        }
+        if (this.x > offCanvas.width + 10) { this.x = -10; }
       }
     }
     draw(ctx) {
@@ -279,13 +302,13 @@
       ctx.stroke();
     }
   }
-
+  
   class PlayerBird {
     constructor(x, y, speed, controlScheme = "arrows") {
       this.x = x;
       this.y = y;
       this.speed = speed;
-      this.controlScheme = controlScheme;
+      this.controlScheme = controlScheme; // "arrows", "wasd" o "touch"
       this.wingPhase = 0;
       this.poweredUp = false;
       this.powerUpTimer = 0;
@@ -293,43 +316,77 @@
       this.lives = 3;
       this.killCount = 0;
       this.blinkTimer = 0;
+      // Temporizadores para efectos visuales del halo
+      this.absorbEffectTimer = 0;
     }
     update() {
       let effectiveSpeed = this.speed;
-      if (this.poweredUp) effectiveSpeed *= 2;
-      if (!gameOver) {
-        if (this.controlScheme === "arrows") {
-          if (keys["ArrowUp"])    this.y -= effectiveSpeed;
-          if (keys["ArrowDown"])  this.y += effectiveSpeed;
-          if (keys["ArrowLeft"])  this.x -= effectiveSpeed;
-          if (keys["ArrowRight"]) this.x += effectiveSpeed;
-        } else {
-          if (keys["w"]) this.y -= effectiveSpeed;
-          if (keys["s"]) this.y += effectiveSpeed;
-          if (keys["a"]) this.x -= effectiveSpeed;
-          if (keys["d"]) this.x += effectiveSpeed;
+      if(this.poweredUp) effectiveSpeed *= 2;
+      if(!gameOver) {
+        if(this.controlScheme === "arrows") {
+          if(keys["ArrowUp"])    this.y -= effectiveSpeed;
+          if(keys["ArrowDown"])  this.y += effectiveSpeed;
+          if(keys["ArrowLeft"])  this.x -= effectiveSpeed;
+          if(keys["ArrowRight"]) this.x += effectiveSpeed;
+        } else if(this.controlScheme === "wasd") {
+          if(keys["w"]) this.y -= effectiveSpeed;
+          if(keys["s"]) this.y += effectiveSpeed;
+          if(keys["a"]) this.x -= effectiveSpeed;
+          if(keys["d"]) this.x += effectiveSpeed;
+        } else if(this.controlScheme === "touch") {
+          // Control por gestos en móvil
+          this.x += mobileDir.x * effectiveSpeed;
+          this.y += mobileDir.y * effectiveSpeed;
         }
       }
-      if (this.x < 0) this.x = 0;
-      if (this.x > offCanvas.width - 6) this.x = offCanvas.width - 6;
-      if (this.y < 0) this.y = 0;
-      if (this.y > offCanvas.height) this.y = offCanvas.height;
+      if(this.x < 0) this.x = 0;
+      if(this.x > offCanvas.width - 6) this.x = offCanvas.width - 6;
+      if(this.y < 0) this.y = 0;
+      if(this.y > offCanvas.height) this.y = offCanvas.height;
       this.wingPhase += 0.2;
-      if (this.poweredUp) {
+      if(this.poweredUp) {
         this.powerUpTimer--;
-        if (this.powerUpTimer <= 0) this.poweredUp = false;
+        if(this.powerUpTimer <= 0) {
+          this.poweredUp = false;
+        }
       }
-      if (this.blinkTimer > 0) this.blinkTimer--;
-      if (this.dead) {
+      if(this.blinkTimer > 0) this.blinkTimer--;
+      if(this.dead) {
         this.y += 1;
-        if (this.y > offCanvas.height - groundHeight) this.y = offCanvas.height - groundHeight;
+        if(this.y > offCanvas.height - groundHeight) this.y = offCanvas.height - groundHeight;
       }
+      if(this.absorbEffectTimer > 0) { this.absorbEffectTimer--; }
     }
     draw(ctx) {
-      if (this.blinkTimer > 0 && Math.floor(this.blinkTimer/5)%2 === 0) return;
-      if (this.poweredUp) {
+      // Efecto de absorción al conseguir el halo
+      if(this.absorbEffectTimer > 0) {
+        for(let i = 0; i < 5; i++){
+          let offsetX = (Math.random() - 0.5) * 10;
+          let offsetY = (Math.random() - 0.5) * 10;
+          let alpha = this.absorbEffectTimer / 60;
+          ctx.fillStyle = "rgba(255,215,0,"+alpha+")";
+          ctx.beginPath();
+          ctx.arc(this.x+3+offsetX, this.y-1+offsetY, 1, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+      // Efecto de advertencia justo antes de perder el halo
+      if(this.poweredUp && this.powerUpTimer < 30) {
+        for(let i = 0; i < 3; i++){
+          let offsetX = (Math.random() - 0.5) * 8;
+          let offsetY = (Math.random() - 0.5) * 8;
+          let alpha = this.powerUpTimer / 30;
+          ctx.fillStyle = "rgba(255,0,0,"+alpha+")";
+          ctx.beginPath();
+          ctx.arc(this.x+3+offsetX, this.y-1+offsetY, 1, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+  
+      if(this.blinkTimer > 0 && Math.floor(this.blinkTimer/5)%2 === 0) return;
+      if(this.poweredUp) {
         let nearCloud = clouds.some(cloud => Math.abs(cloud.x - (this.x+3)) < 40);
-        if (nearCloud) {
+        if(nearCloud) {
           ctx.save();
           let haloRadius = 20;
           let grad = ctx.createRadialGradient(this.x+3, this.y-1, 0, this.x+3, this.y-1, haloRadius);
@@ -355,7 +412,7 @@
       ctx.stroke();
     }
   }
-
+  
   class Monster {
     constructor() {
       this.fromLeft = Math.random() < 0.5;
@@ -365,13 +422,18 @@
       this.phase = Math.random()*2*Math.PI;
       this.wingPhase = 0;
       this.isSuper = false;
+      this.tracking = false; // se usará para determinar si sigue al jugador verticalmente
     }
     update() {
       this.x += this.vx * 0.8;
       this.phase += 0.1;
       this.wingPhase += 0.2;
-      let deltaY = (playerBird.y - this.y)*0.05;
-      this.y += (deltaY + Math.sin(this.phase)*0.5)*0.8;
+      if(this.tracking) {
+        let deltaY = (playerBird.y - this.y)*0.05;
+        this.y += (deltaY + Math.sin(this.phase)*0.5)*0.8;
+      } else {
+        this.y += Math.sin(this.phase)*0.5*0.8;
+      }
     }
     draw(ctx) {
       ctx.save();
@@ -397,28 +459,22 @@
       ctx.restore();
     }
   }
-
+  
   class SuperMonster extends Monster {
     constructor() {
       super();
       this.isSuper = true;
       this.sizeMultiplier = 3; // triple tamaño
     }
-    update() {
-      super.update();
-      // Movimiento oscilatorio extra
-      this.y += Math.sin(this.phase) * 0.3;
-    }
+    update() { super.update(); }
     draw(ctx) {
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.scale(3 * this.sizeMultiplier, 3 * this.sizeMultiplier);
-      // Dibujar cuerpo
       ctx.fillStyle = "darkred";
       ctx.beginPath();
       ctx.arc(0, 0, 1, 0, Math.PI*2);
       ctx.fill();
-      // Detalles: ojos
       ctx.fillStyle = "black";
       ctx.beginPath();
       ctx.arc(-0.4, -0.4, 0.2, 0, Math.PI*2);
@@ -426,7 +482,6 @@
       ctx.fill();
       ctx.strokeStyle = "black";
       ctx.lineWidth = 0.1;
-      // Dibujar cuernos
       ctx.beginPath();
       ctx.moveTo(-0.6, -0.6);
       ctx.lineTo(-0.4, -1);
@@ -440,7 +495,7 @@
       ctx.restore();
     }
   }
-
+  
   class Cloud {
     constructor(x, y, speed) {
       this.x = x;
@@ -451,11 +506,11 @@
     }
     update() {
       this.x += this.speed * slowFactor;
-      if (this.x - this.radius * 1.5 > offCanvas.width) {
+      if(this.x - this.radius * 1.5 > offCanvas.width) {
         this.x = -this.radius * 1.5;
       }
       this.lightningTimer--;
-      if (this.lightningTimer <= 0) {
+      if(this.lightningTimer <= 0) {
         triggerLightning(this.x, this.y + this.radius);
         this.lightningTimer = Math.floor(Math.random() * 300) + 300;
       }
@@ -466,14 +521,14 @@
       grad.addColorStop(1, "#666666");
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.arc(this.x + this.radius * 0.8, this.y - this.radius * 0.3, this.radius * 0.9, 0, Math.PI * 2);
-      ctx.arc(this.x - this.radius * 0.8, this.y - this.radius * 0.3, this.radius * 0.9, 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+      ctx.arc(this.x + this.radius * 0.8, this.y - this.radius * 0.3, this.radius * 0.9, 0, Math.PI*2);
+      ctx.arc(this.x - this.radius * 0.8, this.y - this.radius * 0.3, this.radius * 0.9, 0, Math.PI*2);
       ctx.closePath();
       ctx.fill();
     }
   }
-
+  
   // ----- DIBUJO DE CORAZÓN -----
   function drawHeart(ctx, x, y, size, filled) {
     ctx.save();
@@ -491,7 +546,7 @@
     ctx.stroke();
     ctx.restore();
   }
-
+  
   // ----- UTILIDADES DE DIBUJO -----
   function randomPointInTriangle(A,B,C) {
     let r1 = Math.random(), r2 = Math.random();
@@ -499,7 +554,7 @@
     return { x: A.x + r1*(B.x-A.x) + r2*(C.x-A.x),
              y: A.y + r1*(B.y-A.y) + r2*(C.y-A.y) };
   }
-
+  
   function drawBackground(ctx) {
     const grad = ctx.createLinearGradient(0,0,0,offCanvas.height - groundHeight);
     grad.addColorStop(0, "#4b0082");
@@ -508,12 +563,12 @@
     ctx.fillStyle = grad;
     ctx.fillRect(0,0, offCanvas.width, offCanvas.height - groundHeight);
   }
-
+  
   function drawGround(ctx) {
     ctx.fillStyle = "#3a2b1d";
     ctx.fillRect(0, offCanvas.height - groundHeight, offCanvas.width, groundHeight);
   }
-
+  
   // ----- VOLCÁN Y ENTORNO -----
   function computeVolcano() {
     const volcanoWidth = 200, volcanoHeight = 100;
@@ -526,9 +581,8 @@
       rightBase: { x: centerX + volcanoWidth/2, y: baseY }
     };
   }
-
+  
   function drawVolcano(ctx, volcano) {
-    // Volcán con gradiente y detalles en el cráter
     ctx.fillStyle = "#4d4d4d";
     ctx.beginPath();
     ctx.moveTo(volcano.centerX - volcano.volcanoWidth/2, volcano.baseY);
@@ -549,7 +603,6 @@
       let yPos = volcano.baseY - volcano.volcanoHeight + Math.random()*(volcano.volcanoHeight/2);
       ctx.fillRect(xPos, yPos, 4, 2);
     }
-    // Cráter con efecto brillante
     let grad = ctx.createRadialGradient(volcano.crater.x, volcano.crater.y, 1, volcano.crater.x, volcano.crater.y, 8);
     grad.addColorStop(0, "rgba(255,255,255,0.8)");
     grad.addColorStop(1, "rgba(255,255,255,0)");
@@ -558,7 +611,7 @@
     ctx.arc(volcano.crater.x, volcano.crater.y, 8, 0, Math.PI*2);
     ctx.fill();
   }
-
+  
   function generateVolcanoFlora(volcano) {
     const flora = [];
     for(let i=0;i<40;i++){
@@ -578,7 +631,7 @@
     }
     return flora;
   }
-
+  
   function drawVolcanoFlora(ctx, flora) {
     flora.forEach(item => {
       if(item.type === "tree"){
@@ -592,7 +645,7 @@
       }
     });
   }
-
+  
   function generateGroundTrees() {
     const trees = [];
     for(let i=0;i<30;i++){
@@ -603,7 +656,7 @@
     }
     return trees;
   }
-
+  
   function drawGroundTrees(ctx, trees) {
     trees.forEach(item => {
       if(item.type==="tree"){
@@ -617,7 +670,7 @@
       }
     });
   }
-
+  
   // ----- FUNCIONES DE GENERACIÓN -----
   function spawnRiverLava(volcano) {
     const { top, leftBase, rightBase } = volcano;
@@ -636,7 +689,7 @@
     let vyR = (dyR / magR) * speed;
     riverLavaParticles.push(riverLavaPool.get(top.x, top.y, vxR, vyR));
   }
-
+  
   function spawnCentralRiverLava(volcano) {
     const top = volcano.top;
     const bottomCenter = { x: volcano.centerX, y: volcano.baseY };
@@ -648,7 +701,7 @@
     let vy = (dy / mag) * speed;
     centralRiverLavaParticles.push(centralRiverLavaPool.get(top.x, top.y, vx, vy));
   }
-
+  
   function spawnBird() {
     let x = -10;
     let y = Math.random() * (offCanvas.height - groundHeight);
@@ -657,7 +710,7 @@
     if(color === "white" && Math.random() < 0.1) return;
     birds.push(birdPool.get(x, y, vx, color));
   }
-
+  
   function adjustMonsters() {
     const liveBirds = birds.filter(b => !b.dead).length;
     const desiredMonsters = Math.floor(liveBirds / 5);
@@ -670,7 +723,7 @@
       }
     }
   }
-
+  
   function triggerLightning(x, y) {
     let isThick = Math.random() < 0.2;
     lightnings.push(lightningPool.get(x, y, isThick));
@@ -680,6 +733,7 @@
       if(Math.sqrt(dx*dx + dy*dy) < 30 && !player.poweredUp) {
         player.poweredUp = true;
         player.powerUpTimer = 300;
+        player.absorbEffectTimer = 60;
         victorySound.play();
       }
     };
@@ -687,8 +741,9 @@
     if(playerBird2 && !playerBird2.dead) checkHalo(playerBird2);
     if(isThick) spawnBird();
   }
-
+  
   // ----- INICIALIZACIÓN Y REINICIO DEL JUEGO -----
+  let volcanoFlora, groundTrees;
   function initGame() {
     interiorSmokeParticles = [];
     lavaParticles = [];
@@ -722,12 +777,15 @@
       clouds.push(new Cloud(x,y,speed));
     }
     
-    playerBird = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "arrows");
-    if(playerBird2) {
+    if(isMobile) {
+      playerBird = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "touch");
+      playerBird2 = null;
+    } else {
+      playerBird = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "arrows");
       playerBird2 = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "wasd");
     }
   }
-
+  
   // ----- BUCLE DE ANIMACIÓN -----
   function animate() {
     frameCount++;
@@ -779,6 +837,24 @@
     birds.forEach(b => b.update());
     playerBird.update();
     if(playerBird2) playerBird2.update();
+    
+    // Determinar el monstruo más cercano a la izquierda y a la derecha del jugador
+    let leftTarget = null, rightTarget = null;
+    monsters.forEach(m => {
+      if(m.x < playerBird.x) {
+        if(!leftTarget || (playerBird.x - m.x) < (playerBird.x - leftTarget.x)) {
+          leftTarget = m;
+        }
+      } else if(m.x > playerBird.x) {
+        if(!rightTarget || (m.x - playerBird.x) < (rightTarget.x - playerBird.x)) {
+          rightTarget = m;
+        }
+      }
+    });
+    monsters.forEach(m => {
+      m.tracking = (m === leftTarget || m === rightTarget);
+    });
+    
     monsters.forEach((m, i) => {
       m.update();
       if(m.x < -20 || m.x > offCanvas.width+20) { monsters.splice(i,1); }
