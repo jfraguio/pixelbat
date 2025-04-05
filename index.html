@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Volcán Pixel Art - Versión Demoníaca Mejorada (Móvil y Efectos)</title>
+  <title>Pixel Bat</title>
   <style>
     html, body {
       margin: 0;
@@ -24,57 +24,61 @@
   const slowFactor = 0.15;
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
-  
+
   // Canvas offscreen para efecto pixel art
   const offCanvas = document.createElement("canvas");
   offCanvas.width = 320;
   offCanvas.height = 180;
   const offCtx = offCanvas.getContext("2d");
   offCtx.imageSmoothingEnabled = false;
-  
+
   function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
   window.addEventListener("resize", resize);
   resize();
-  
+
   const groundHeight = 15;
   let gameOver = false;
   let frameCount = 0;
-  
+
   // ----- DETECCIÓN DE MÓVIL Y VARIABLES DE CONTROL TÁCTIL -----
   const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-  // Para control táctil, se usará la variable mobileDir (dirección cardinal)
   let mobileDir = { x: 0, y: 0 };
   let touchStartX = 0, touchStartY = 0;
   
   if(isMobile) {
     canvas.addEventListener("touchstart", function(e) {
       e.preventDefault();
-      let touch = e.touches[0];
+      const touch = e.touches[0];
       touchStartX = touch.clientX;
       touchStartY = touch.clientY;
     }, {passive:false});
+    
     canvas.addEventListener("touchmove", function(e) {
       e.preventDefault();
-      let touch = e.touches[0];
-      let dx = touch.clientX - touchStartX;
-      let dy = touch.clientY - touchStartY;
-      let threshold = 20;
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      const threshold = 20;
       // Se determina la dirección predominante (cardinal)
       if(Math.abs(dx) > Math.abs(dy)) {
-        mobileDir = (dx > threshold) ? {x:1, y:0} : (dx < -threshold ? {x:-1, y:0} : {x:0, y:0});
+        mobileDir = (dx > threshold) ? {x:1, y:0} : (dx < -threshold ? {x:-1, y:0} : mobileDir);
       } else {
-        mobileDir = (dy > threshold) ? {x:0, y:1} : (dy < -threshold ? {x:0, y:-1} : {x:0, y:0});
+        mobileDir = (dy > threshold) ? {x:0, y:1} : (dy < -threshold ? {x:0, y:-1} : mobileDir);
       }
     }, {passive:false});
+    
+    // Se han eliminado los resets en touchend y touchcancel para mantener la dirección
     canvas.addEventListener("touchend", function(e) {
       e.preventDefault();
-      mobileDir = {x:0, y:0};
+    }, {passive:false});
+    canvas.addEventListener("touchcancel", function(e) {
+      e.preventDefault();
     }, {passive:false});
   }
-  
+
   // ----- POOL DE OBJETOS (para partículas, aves y rayos) -----
   class ObjectPool {
     constructor(createFunc) {
@@ -83,7 +87,7 @@
     }
     get(...args) {
       if(this.pool.length > 0) {
-        let obj = this.pool.pop();
+        const obj = this.pool.pop();
         if(typeof obj.reset === 'function') { obj.reset(...args); }
         return obj;
       } else {
@@ -94,14 +98,14 @@
       this.pool.push(obj);
     }
   }
-  
+
   const interiorSmokePool = new ObjectPool((x,y) => new InteriorSmoke(x,y));
   const lavaParticlePool = new ObjectPool((x,y) => new LavaParticle(x,y));
   const riverLavaPool = new ObjectPool((x,y,vx,vy) => new RiverLavaParticle(x,y,vx,vy));
   const centralRiverLavaPool = new ObjectPool((x,y,vx,vy) => new CentralRiverLavaParticle(x,y,vx,vy));
   const lightningPool = new ObjectPool((x,y,isThick) => new Lightning(x,y,isThick));
   const birdPool = new ObjectPool((x,y,vx,color) => new Bird(x,y,vx,color));
-  
+
   // ----- VARIABLES GLOBALES DEL JUEGO -----
   let interiorSmokeParticles = [];
   let lavaParticles = [];
@@ -112,25 +116,26 @@
   let birds = [];
   let monsters = [];
   let stars = [];
+  let teleportParticles = [];
   
-  // Jugador (único en móvil)
+  // Jugador único (en móvil y en escritorio hasta que se pulse "w" para el 2º)
   let playerBird, playerBird2 = null;
   
   // Contador para spawn de monstruos (cada 15 normales se genera uno super)
   let monsterSpawnCounter = 0;
-  
-  // ----- CONTROLES DE TECLADO (solo en no-móvil) -----
+
+  // ----- CONTROLES DE TECLADO (sólo en escritorio) -----
   const keys = {};
   window.addEventListener("keydown", e => {
     keys[e.key] = true;
-    // Permitir dos jugadores sólo en escritorio
+    // Permitir el segundo jugador solo si se pulsa la tecla "w"
     if(!isMobile && e.key === "w" && !playerBird2 && !gameOver) {
       playerBird2 = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "wasd");
     }
     if(gameOver && e.key === " ") { initGame(); }
   });
   window.addEventListener("keyup", e => { keys[e.key] = false; });
-  
+
   // ----- EFECTOS SONOROS (datos base64 de ejemplo; sustituir por sonidos reales) -----
   const dummySound = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZGF0YRoAAAAA";
   const victorySound = new Audio(dummySound);
@@ -139,7 +144,7 @@
   const monsterCollisionSound = new Audio(dummySound);
   const gameOverSound = new Audio(dummySound);
   const healingSound = new Audio(dummySound);
-  
+
   // ----- CLASES CON POOL (cada una con método reset para reciclar) -----
   class InteriorSmoke {
     constructor(x, y) { this.reset(x,y); }
@@ -248,8 +253,8 @@
       this.life = 10;
       let currentX = x, currentY = y;
       while (currentY < offCanvas.height) {
-        let nextX = currentX + (Math.random() * 2 - 1) * 2;
-        let nextY = currentY + Math.random() * 3 + 1;
+        const nextX = currentX + (Math.random() * 2 - 1) * 2;
+        const nextY = currentY + Math.random() * 3 + 1;
         this.segments.push({ x1: currentX, y1: currentY, x2: nextX, y2: nextY });
         currentX = nextX;
         currentY = nextY;
@@ -260,7 +265,7 @@
       ctx.strokeStyle = "white";
       ctx.lineWidth = this.isThick ? 2 : 1;
       ctx.beginPath();
-      for (let seg of this.segments) {
+      for (const seg of this.segments) {
         ctx.moveTo(seg.x1, seg.y1);
         ctx.lineTo(seg.x2, seg.y2);
       }
@@ -295,7 +300,7 @@
       ctx.strokeStyle = this.color;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      let wingOffset = 2 * Math.sin(this.wingPhase);
+      const wingOffset = 2 * Math.sin(this.wingPhase);
       ctx.moveTo(this.x, this.y);
       ctx.lineTo(this.x + 3, this.y - 2 + wingOffset);
       ctx.lineTo(this.x + 6, this.y);
@@ -334,7 +339,7 @@
           if(keys["a"]) this.x -= effectiveSpeed;
           if(keys["d"]) this.x += effectiveSpeed;
         } else if(this.controlScheme === "touch") {
-          // Control por gestos en móvil
+          // Utiliza mobileDir, que se actualiza con cada swipe y se mantiene hasta un nuevo swipe
           this.x += mobileDir.x * effectiveSpeed;
           this.y += mobileDir.y * effectiveSpeed;
         }
@@ -358,38 +363,37 @@
       if(this.absorbEffectTimer > 0) { this.absorbEffectTimer--; }
     }
     draw(ctx) {
-      // Efecto de absorción al conseguir el halo
+      // Efecto de absorción al conseguir el halo (durante 1 segundo)
       if(this.absorbEffectTimer > 0) {
         for(let i = 0; i < 5; i++){
-          let offsetX = (Math.random() - 0.5) * 10;
-          let offsetY = (Math.random() - 0.5) * 10;
-          let alpha = this.absorbEffectTimer / 60;
+          const offsetX = (Math.random() - 0.5) * 10;
+          const offsetY = (Math.random() - 0.5) * 10;
+          const alpha = this.absorbEffectTimer / 60;
           ctx.fillStyle = "rgba(255,215,0,"+alpha+")";
           ctx.beginPath();
           ctx.arc(this.x+3+offsetX, this.y-1+offsetY, 1, 0, Math.PI*2);
           ctx.fill();
         }
       }
-      // Efecto de advertencia justo antes de perder el halo
+      // Advertencia visual cuando el halo está a punto de acabarse
       if(this.poweredUp && this.powerUpTimer < 30) {
         for(let i = 0; i < 3; i++){
-          let offsetX = (Math.random() - 0.5) * 8;
-          let offsetY = (Math.random() - 0.5) * 8;
-          let alpha = this.powerUpTimer / 30;
+          const offsetX = (Math.random() - 0.5) * 8;
+          const offsetY = (Math.random() - 0.5) * 8;
+          const alpha = this.powerUpTimer / 30;
           ctx.fillStyle = "rgba(255,0,0,"+alpha+")";
           ctx.beginPath();
           ctx.arc(this.x+3+offsetX, this.y-1+offsetY, 1, 0, Math.PI*2);
           ctx.fill();
         }
       }
-  
       if(this.blinkTimer > 0 && Math.floor(this.blinkTimer/5)%2 === 0) return;
       if(this.poweredUp) {
-        let nearCloud = clouds.some(cloud => Math.abs(cloud.x - (this.x+3)) < 40);
+        const nearCloud = clouds.some(cloud => Math.abs(cloud.x - (this.x+3)) < 40);
         if(nearCloud) {
           ctx.save();
-          let haloRadius = 20;
-          let grad = ctx.createRadialGradient(this.x+3, this.y-1, 0, this.x+3, this.y-1, haloRadius);
+          const haloRadius = 20;
+          const grad = ctx.createRadialGradient(this.x+3, this.y-1, 0, this.x+3, this.y-1, haloRadius);
           grad.addColorStop(0, "rgba(255,215,0,0.8)");
           grad.addColorStop(1, "rgba(255,215,0,0)");
           ctx.fillStyle = grad;
@@ -405,7 +409,7 @@
       }
       ctx.lineWidth = 1;
       ctx.beginPath();
-      let wingOffset = 2 * Math.sin(this.wingPhase);
+      const wingOffset = 2 * Math.sin(this.wingPhase);
       ctx.moveTo(this.x, this.y);
       ctx.lineTo(this.x+3, this.y-2+wingOffset);
       ctx.lineTo(this.x+6, this.y);
@@ -422,14 +426,14 @@
       this.phase = Math.random()*2*Math.PI;
       this.wingPhase = 0;
       this.isSuper = false;
-      this.tracking = false; // se usará para determinar si sigue al jugador verticalmente
+      this.tracking = false; // Indica si se mueve verticalmente siguiendo al jugador
     }
     update() {
       this.x += this.vx * 0.8;
       this.phase += 0.1;
       this.wingPhase += 0.2;
       if(this.tracking) {
-        let deltaY = (playerBird.y - this.y)*0.05;
+        const deltaY = (playerBird.y - this.y)*0.05;
         this.y += (deltaY + Math.sin(this.phase)*0.5)*0.8;
       } else {
         this.y += Math.sin(this.phase)*0.5*0.8;
@@ -443,7 +447,7 @@
       ctx.beginPath();
       ctx.arc(0, 0, 1, 0, Math.PI*2);
       ctx.fill();
-      let wingOffset = 2 * Math.sin(this.wingPhase);
+      const wingOffset = 2 * Math.sin(this.wingPhase);
       ctx.beginPath();
       ctx.moveTo(-1, 0);
       ctx.lineTo(-3, -2+wingOffset);
@@ -464,7 +468,7 @@
     constructor() {
       super();
       this.isSuper = true;
-      this.sizeMultiplier = 3; // triple tamaño
+      this.sizeMultiplier = 3; // Triple tamaño
     }
     update() { super.update(); }
     draw(ctx) {
@@ -516,7 +520,7 @@
       }
     }
     draw(ctx) {
-      let grad = ctx.createRadialGradient(this.x, this.y, this.radius * 0.5, this.x, this.y, this.radius);
+      const grad = ctx.createRadialGradient(this.x, this.y, this.radius * 0.5, this.x, this.y, this.radius);
       grad.addColorStop(0, "#aaaaaa");
       grad.addColorStop(1, "#666666");
       ctx.fillStyle = grad;
@@ -525,6 +529,33 @@
       ctx.arc(this.x + this.radius * 0.8, this.y - this.radius * 0.3, this.radius * 0.9, 0, Math.PI*2);
       ctx.arc(this.x - this.radius * 0.8, this.y - this.radius * 0.3, this.radius * 0.9, 0, Math.PI*2);
       ctx.closePath();
+      ctx.fill();
+    }
+  }
+  
+  // ----- NUEVA CLASE: Partículas de Teletransporte -----
+  class TeleportParticle {
+    constructor(x, y) { this.reset(x,y); }
+    reset(x, y) {
+      // Posición aleatoria alrededor del punto (±5 píxeles)
+      this.x = x + (Math.random()-0.5)*10;
+      this.y = y + (Math.random()-0.5)*10;
+      this.vx = (Math.random()-0.5) * 1;
+      this.vy = (Math.random()-0.5) * 1;
+      this.life = 60; // Duración de 60 frames (aprox. 1 seg.)
+      this.alpha = 1;
+      this.color = (Math.random() < 0.5) ? "blue" : "white";
+    }
+    update() {
+      this.x += this.vx * slowFactor;
+      this.y += this.vy * slowFactor;
+      this.life--;
+      this.alpha = this.life / 60;
+    }
+    draw(ctx) {
+      ctx.fillStyle = (this.color==="blue") ? `rgba(0,0,255,${this.alpha})` : `rgba(255,255,255,${this.alpha})`;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 2, 0, Math.PI*2);
       ctx.fill();
     }
   }
@@ -593,17 +624,17 @@
     
     ctx.fillStyle = "#666666";
     for(let i=0;i<12;i++){
-      let xPos = volcano.centerX - volcano.volcanoWidth/2 + Math.random()*volcano.volcanoWidth;
-      let yPos = volcano.baseY - Math.random()*volcano.volcanoHeight;
+      const xPos = volcano.centerX - volcano.volcanoWidth/2 + Math.random()*volcano.volcanoWidth;
+      const yPos = volcano.baseY - Math.random()*volcano.volcanoHeight;
       ctx.fillRect(xPos, yPos, 2, 1);
     }
     ctx.fillStyle = "#555555";
     for(let i=0;i<5;i++){
-      let xPos = volcano.centerX - volcano.volcanoWidth/2 + Math.random()*volcano.volcanoWidth;
-      let yPos = volcano.baseY - volcano.volcanoHeight + Math.random()*(volcano.volcanoHeight/2);
+      const xPos = volcano.centerX - volcano.volcanoWidth/2 + Math.random()*volcano.volcanoWidth;
+      const yPos = volcano.baseY - volcano.volcanoHeight + Math.random()*(volcano.volcanoHeight/2);
       ctx.fillRect(xPos, yPos, 4, 2);
     }
-    let grad = ctx.createRadialGradient(volcano.crater.x, volcano.crater.y, 1, volcano.crater.x, volcano.crater.y, 8);
+    const grad = ctx.createRadialGradient(volcano.crater.x, volcano.crater.y, 1, volcano.crater.x, volcano.crater.y, 8);
     grad.addColorStop(0, "rgba(255,255,255,0.8)");
     grad.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = grad;
@@ -615,8 +646,8 @@
   function generateVolcanoFlora(volcano) {
     const flora = [];
     for(let i=0;i<40;i++){
-      let onLeft = Math.random() < 0.5;
-      let t = Math.random();
+      const onLeft = Math.random() < 0.5;
+      const t = Math.random();
       let x, y;
       if(onLeft) {
         x = volcano.centerX - (volcano.volcanoWidth/2)*t;
@@ -649,9 +680,9 @@
   function generateGroundTrees() {
     const trees = [];
     for(let i=0;i<30;i++){
-      let x = Math.random()*offCanvas.width;
-      let y = offCanvas.height - groundHeight;
-      let type = (Math.random() < 0.7) ? "tree" : "bush";
+      const x = Math.random()*offCanvas.width;
+      const y = offCanvas.height - groundHeight;
+      const type = (Math.random() < 0.7) ? "tree" : "bush";
       trees.push({ x, y, type });
     }
     return trees;
@@ -674,39 +705,39 @@
   // ----- FUNCIONES DE GENERACIÓN -----
   function spawnRiverLava(volcano) {
     const { top, leftBase, rightBase } = volcano;
-    let speed = 0.7;
-    let dxL = leftBase.x - top.x;
-    let dyL = leftBase.y - top.y;
-    let magL = Math.sqrt(dxL*dxL + dyL*dyL);
-    let vxL = (dxL / magL) * speed;
-    let vyL = (dyL / magL) * speed;
+    const speed = 0.7;
+    const dxL = leftBase.x - top.x;
+    const dyL = leftBase.y - top.y;
+    const magL = Math.sqrt(dxL*dxL + dyL*dyL);
+    const vxL = (dxL / magL) * speed;
+    const vyL = (dyL / magL) * speed;
     riverLavaParticles.push(riverLavaPool.get(top.x, top.y, vxL, vyL));
     
-    let dxR = rightBase.x - top.x;
-    let dyR = rightBase.y - top.y;
-    let magR = Math.sqrt(dxR*dxR + dyR*dyR);
-    let vxR = (dxR / magR) * speed;
-    let vyR = (dyR / magR) * speed;
+    const dxR = rightBase.x - top.x;
+    const dyR = rightBase.y - top.y;
+    const magR = Math.sqrt(dxR*dxR + dyR*dyR);
+    const vxR = (dxR / magR) * speed;
+    const vyR = (dyR / magR) * speed;
     riverLavaParticles.push(riverLavaPool.get(top.x, top.y, vxR, vyR));
   }
   
   function spawnCentralRiverLava(volcano) {
     const top = volcano.top;
     const bottomCenter = { x: volcano.centerX, y: volcano.baseY };
-    let speed = 0.7;
-    let dx = bottomCenter.x - top.x;
-    let dy = bottomCenter.y - top.y;
-    let mag = Math.sqrt(dx*dx + dy*dy);
-    let vx = (dx / mag) * speed;
-    let vy = (dy / mag) * speed;
+    const speed = 0.7;
+    const dx = bottomCenter.x - top.x;
+    const dy = bottomCenter.y - top.y;
+    const mag = Math.sqrt(dx*dx + dy*dy);
+    const vx = (dx / mag) * speed;
+    const vy = (dy / mag) * speed;
     centralRiverLavaParticles.push(centralRiverLavaPool.get(top.x, top.y, vx, vy));
   }
   
   function spawnBird() {
-    let x = -10;
-    let y = Math.random() * (offCanvas.height - groundHeight);
-    let vx = 0.5;
-    let color = (Math.random() < 0.05) ? "blue" : "white";
+    const x = -10;
+    const y = Math.random() * (offCanvas.height - groundHeight);
+    const vx = 0.5;
+    const color = (Math.random() < 0.05) ? "blue" : "white";
     if(color === "white" && Math.random() < 0.1) return;
     birds.push(birdPool.get(x, y, vx, color));
   }
@@ -725,11 +756,11 @@
   }
   
   function triggerLightning(x, y) {
-    let isThick = Math.random() < 0.2;
+    const isThick = Math.random() < 0.2;
     lightnings.push(lightningPool.get(x, y, isThick));
     lightningSound.play();
     const checkHalo = player => {
-      let dx = player.x - x, dy = player.y - y;
+      const dx = player.x - x, dy = player.y - y;
       if(Math.sqrt(dx*dx + dy*dy) < 30 && !player.poweredUp) {
         player.poweredUp = true;
         player.powerUpTimer = 300;
@@ -754,6 +785,7 @@
     birds = [];
     monsters = [];
     stars = [];
+    teleportParticles = [];
     gameOver = false;
     frameCount = 0;
     monsterSpawnCounter = 0;
@@ -771,18 +803,23 @@
     groundTrees = generateGroundTrees();
     
     for(let i=0;i<5;i++){
-      let x = Math.random()*offCanvas.width;
-      let y = Math.random()*30;
-      let speed = 0.03 + Math.random()*0.02;
+      const x = Math.random()*offCanvas.width;
+      const y = Math.random()*30;
+      const speed = 0.03 + Math.random()*0.02;
       clouds.push(new Cloud(x,y,speed));
     }
     
+    // En cualquier dispositivo se crea solo un jugador al inicio.
     if(isMobile) {
       playerBird = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "touch");
-      playerBird2 = null;
     } else {
       playerBird = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "arrows");
-      playerBird2 = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "wasd");
+    }
+    playerBird2 = null;
+    
+    // Efecto de teletransporte: concentrar partículas azules y blancas alrededor del jugador
+    for(let i=0; i<50; i++){
+      teleportParticles.push(new TeleportParticle(playerBird.x, playerBird.y));
     }
   }
   
@@ -794,7 +831,7 @@
     clouds.forEach(c => c.update());
     
     for(let i = interiorSmokeParticles.length - 1; i >= 0; i--){
-      let p = interiorSmokeParticles[i];
+      const p = interiorSmokeParticles[i];
       p.update();
       if(p.life <= 0) { 
         interiorSmokeParticles.splice(i,1);
@@ -802,7 +839,7 @@
       }
     }
     for(let i = lavaParticles.length - 1; i >= 0; i--){
-      let p = lavaParticles[i];
+      const p = lavaParticles[i];
       p.update();
       if(p.life <= 0) {
         lavaParticles.splice(i,1);
@@ -810,7 +847,7 @@
       }
     }
     for(let i = riverLavaParticles.length - 1; i >= 0; i--){
-      let p = riverLavaParticles[i];
+      const p = riverLavaParticles[i];
       p.update();
       if(p.life <= 0) {
         riverLavaParticles.splice(i,1);
@@ -818,7 +855,7 @@
       }
     }
     for(let i = centralRiverLavaParticles.length - 1; i >= 0; i--){
-      let p = centralRiverLavaParticles[i];
+      const p = centralRiverLavaParticles[i];
       p.update();
       if(p.life <= 0) {
         centralRiverLavaParticles.splice(i,1);
@@ -826,7 +863,7 @@
       }
     }
     for(let i = lightnings.length - 1; i >= 0; i--){
-      let l = lightnings[i];
+      const l = lightnings[i];
       l.update();
       if(l.life <= 0) {
         lightnings.splice(i,1);
@@ -860,7 +897,7 @@
       if(m.x < -20 || m.x > offCanvas.width+20) { monsters.splice(i,1); }
       const checkHit = player => {
         if(!player.dead) {
-          let dx = m.x - player.x, dy = m.y - player.y;
+          const dx = m.x - player.x, dy = m.y - player.y;
           if(Math.sqrt(dx*dx+dy*dy) < 10) {
             if(player.poweredUp) {
               player.killCount++;
@@ -888,8 +925,8 @@
       if(!b.dead) {
         let collided = false;
         const tryCollide = player => {
-          let threshold = player.poweredUp ? 20 : 6;
-          let dx = b.x - player.x, dy = b.y - player.y;
+          const threshold = player.poweredUp ? 20 : 6;
+          const dx = b.x - player.x, dy = b.y - player.y;
           if(Math.sqrt(dx*dx+dy*dy) < threshold) {
             b.dead = true;
             b.vx = 0;
@@ -912,6 +949,15 @@
     });
     
     adjustMonsters();
+    
+    // Actualizar partículas de teletransporte
+    for(let i = teleportParticles.length - 1; i >= 0; i--){
+      const p = teleportParticles[i];
+      p.update();
+      if(p.life <= 0) {
+        teleportParticles.splice(i,1);
+      }
+    }
     
     offCtx.clearRect(0,0,offCanvas.width, offCanvas.height);
     drawBackground(offCtx);
@@ -936,11 +982,11 @@
     }
     lavaParticles.forEach(p => p.draw(offCtx));
     
-    let A = { x: volcanoInfo.leftBase.x, y: volcanoInfo.leftBase.y };
-    let B = { x: volcanoInfo.top.x, y: volcanoInfo.top.y };
-    let C = { x: volcanoInfo.rightBase.x, y: volcanoInfo.rightBase.y };
+    const A = { x: volcanoInfo.leftBase.x, y: volcanoInfo.leftBase.y };
+    const B = { x: volcanoInfo.top.x, y: volcanoInfo.top.y };
+    const C = { x: volcanoInfo.rightBase.x, y: volcanoInfo.rightBase.y };
     for(let i=0;i<8;i++){
-      let p = randomPointInTriangle(A,B,C);
+      const p = randomPointInTriangle(A,B,C);
       interiorSmokeParticles.push(interiorSmokePool.get(p.x, p.y));
     }
     interiorSmokeParticles.forEach(p => p.draw(offCtx));
@@ -959,18 +1005,21 @@
     playerBird.draw(offCtx);
     if(playerBird2) playerBird2.draw(offCtx);
     
+    // Dibujar partículas de teletransporte (efecto inicial)
+    teleportParticles.forEach(p => p.draw(offCtx));
+    
     offCtx.fillStyle = "white";
     offCtx.font = "8px Arial";
     offCtx.fillText("Kills: " + playerBird.killCount, offCanvas.width - 70, 10);
     const heartSize = 4;
     for(let i=0;i<3;i++){
-      let filled = i < playerBird.lives;
+      const filled = i < playerBird.lives;
       drawHeart(offCtx, offCanvas.width - 70 + i*(heartSize*2+2), 20, heartSize, filled);
     }
     if(playerBird2) {
       offCtx.fillText("Kills: " + playerBird2.killCount, offCanvas.width - 70, 30);
       for(let i=0;i<3;i++){
-        let filled = i < playerBird2.lives;
+        const filled = i < playerBird2.lives;
         drawHeart(offCtx, offCanvas.width - 70 + i*(heartSize*2+2), 40, heartSize, filled);
       }
     }
@@ -981,8 +1030,14 @@
       offCtx.fillText("GAME OVER", offCanvas.width/2 - 40, offCanvas.height/2);
     }
     
+    // --- DIBUJAR OFFCANVAS CON ESCALADO PARA MANTENER RELACIÓN DE ASPECTO ---
+    // Se calcula el factor de escalado y se centra la imagen en el canvas principal.
+    const scale = Math.min(canvas.width / offCanvas.width, canvas.height / offCanvas.height);
+    const xOffset = (canvas.width - offCanvas.width * scale) / 2;
+    const yOffset = (canvas.height - offCanvas.height * scale) / 2;
     ctx.clearRect(0,0,canvas.width, canvas.height);
-    ctx.drawImage(offCanvas, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(offCanvas, xOffset, yOffset, offCanvas.width * scale, offCanvas.height * scale);
+    
     requestAnimationFrame(animate);
   }
   
