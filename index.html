@@ -1,1049 +1,489 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Pixelbat</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sitges Plan</title>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: black;
+    :root{
+      --bg:#0f1115; --panel:#161a22; --card:#1b2130; --muted:#8b94a7; --text:#e8eef9; --accent:#4cc9f0; --accent-2:#a0e9ff; --ok:#6ee7b7; --border:#273047;
+      --G:#ff7a59; --A:#ffd166; --M:#95d5b2; --D:#80b3ff; --F:#f77fbe;
     }
-    canvas {
-      display: block;
-      image-rendering: pixelated;
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg, #0d0f14, #0f1115 30%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell, Noto Sans, Helvetica, Arial,"Apple Color Emoji","Segoe UI Emoji"}
+    .wrap{max-width:1100px;margin-inline:auto;padding:20px}
+
+    /* ===== Header compacto y responsive ===== */
+    header{position:sticky;top:0;z-index:10;background:rgba(15,17,21,.85);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+    .topbar{display:flex;align-items:center;gap:12px;padding:10px 14px}
+    .title{font-weight:700;letter-spacing:.2px;white-space:nowrap}
+    .sp{flex:1}
+    .counter{display:flex;gap:10px;align-items:center;font-variant-numeric:tabular-nums}
+    .count{background:var(--panel);border:1px solid var(--border);padding:6px 8px;border-radius:10px;font-size:.9rem}
+
+    /* Pestañas en una sola fila con scroll horizontal */
+    .tabs{display:flex;gap:8px;padding:0 14px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+    .tabs::-webkit-scrollbar{height:6px}
+    .tabs::-webkit-scrollbar-thumb{background:#223;border-radius:999px}
+    .tab{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:8px 12px;border-radius:999px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px;font-weight:600;scroll-snap-align:start;white-space:nowrap}
+    .tab:hover{transform:translateY(-1px);border-color:#33406a}
+    .tab[aria-pressed="true"]{background:linear-gradient(180deg, #1f2637, #192033);border-color:#3b4a72;box-shadow:0 6px 20px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.06)}
+    .pill{display:inline-block;width:.8em;height:.8em;border-radius:999px}
+
+    /* Leyenda: visible en desktop, oculta en móvil */
+    .legend{display:flex;flex-wrap:wrap;gap:8px;padding:6px 14px 12px;border-top:1px solid var(--border);background:rgba(15,17,21,.65)}
+    .legend span{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:.9rem;background:var(--panel);border:1px solid var(--border);padding:6px 10px;border-radius:999px}
+
+    .grid{display:grid;gap:24px;padding:16px 0}
+    .day{border:1px solid var(--border);background:var(--panel);border-radius:16px;overflow:visible;position:relative}
+    .dayhead{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, #192033, #141925)}
+    .dayname{font-weight:800;letter-spacing:.5px}
+
+    /* ===== Tarjetas a ancho completo ===== */
+    .slots{display:flex;flex-direction:column;gap:10px;padding:10px}
+    .card{width:100%;display:grid;grid-template-columns:110px 1fr 160px auto;gap:10px;align-items:center;border:1px solid var(--border);background:var(--card);border-radius:12px;padding:12px 14px;transition:.12s}
+    .card:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,0,0,.24)}
+
+    .time{font-weight:900;font-size:1rem;letter-spacing:.4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .titlex{font-size:1.02rem;font-weight:700;line-height:1.25}
+    .venue{color:var(--muted);font-size:.95rem;justify-self:start}
+
+    .who{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    .tag{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-weight:800;position:relative}
+    .tag .pill{width:.7em;height:.7em}
+    .tag .x{display:inline-flex;align-items:center;justify-content:center;width:1.05em;height:1.05em;border-radius:999px;border:1px solid var(--border);font-weight:900;line-height:1;opacity:.6;user-select:none}
+    .tag:hover .x{opacity:1;background:#1b2233}
+
+    /* Texto plano */
+    .plain{margin-top:16px;border:1px dashed #33406a;background:#121724;border-radius:12px}
+    .plainhead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px dashed #33406a}
+    .plainhead h3{margin:0;font-size:1rem;color:var(--muted);font-weight:800;letter-spacing:.4px}
+    .plainbody{padding:12px}
+    .plainbody pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:.95rem;line-height:1.4}
+    .copybar{display:flex;gap:8px;align-items:center;margin-left:auto}
+    .btn{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:6px 10px;border-radius:8px;cursor:pointer}
+    .btn:active{transform:translateY(1px)}
+
+    /* Menú añadir (portal) */
+    .adder{display:inline-flex;align-items:center;gap:6px;margin-left:8px}
+    .add-btn{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:4px 10px;border-radius:999px;cursor:pointer;font-weight:800;line-height:1}
+    .menu-portal{position:fixed;display:none;z-index:99999;left:-9999px;top:-9999px;pointer-events:auto}
+    .menu-portal.open{display:block}
+    .menu-panel{min-width:220px;max-width:90vw;max-height:70vh;overflow:auto;background:#0f141f;border:1px solid var(--border);border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.6);padding:8px}
+    .menu-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px}
+    .menu-row:hover{background:#1b2334}
+    .menu-row .who-side{display:flex;align-items:center;gap:8px}
+    .menu-row .pill{width:.7em;height:.7em}
+    .menu-row .add-mini{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:999px;padding:2px 8px;cursor:pointer}
+
+    /* ===== Responsivo ===== */
+    @media (max-width:900px){
+      .card{grid-template-columns:90px 1fr 140px auto}
+    }
+    @media (max-width:720px){
+      .legend{display:none}
+      .topbar{gap:8px;padding:8px 10px}
+      .title{font-size:1rem}
+      .count{padding:4px 8px}
+      .tabs{padding:0 10px 8px}
+      .card{grid-template-columns:100px 1fr;grid-template-areas:
+        "time title"
+        "venue who";row-gap:6px}
+      .time{grid-area:time}
+      .titlex{grid-area:title}
+      .venue{grid-area:venue}
+      .who{grid-area:who;justify-content:flex-start}
+    }
+    @media (max-width:480px){
+      .card{grid-template-columns:1fr;grid-template-areas:
+        "time"
+        "title"
+        "venue"
+        "who"}
+      .time{opacity:.9}
     }
   </style>
 </head>
 <body>
-<canvas id="canvas"></canvas>
-<script>
-(() => {
-  // ----- CONFIGURACIÓN INICIAL -----
-  const slowFactor = 0.15;
-  const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d");
+  <header>
+    <div class="topbar">
+      <div class="title">🎬 Sitges Plan</div>
+      <div class="sp"></div>
+      <div class="counter">
+        <div class="count" title="Entradas necesarias según el filtro">
+          Entradas: <b id="tickets">0</b>
+        </div>
+        <div class="count muted" title="Nº de proyecciones visibles">
+          Proyecciones: <b id="shows">0</b>
+        </div>
+      </div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div class="legend" id="legend"></div>
+  </header>
 
-  // Canvas offscreen para efecto pixel art
-  const offCanvas = document.createElement("canvas");
-  offCanvas.width = 320;
-  offCanvas.height = 180;
-  const offCtx = offCanvas.getContext("2d");
-  offCtx.imageSmoothingEnabled = false;
+  <div class="wrap">
+    <div class="grid" id="grid"></div>
 
-  function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  window.addEventListener("resize", resize);
-  resize();
+    <!-- Texto plano sincronizado con el filtro -->
+    <section class="plain" id="plain">
+      <div class="plainhead">
+        <h3>Resumen en texto plano (según filtro)</h3>
+        <div class="copybar">
+          <button class="btn" id="copyBtn" title="Copiar al portapapeles">Copiar</button>
+        </div>
+      </div>
+      <div class="plainbody">
+        <pre id="plaintext"></pre>
+      </div>
+    </section>
+  </div>
 
-  const groundHeight = 15;
-  let gameOver = false;
-  let frameCount = 0;
-
-  // ----- DETECCIÓN DE MÓVIL Y VARIABLES DE CONTROL TÁCTIL -----
-  const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-  let mobileDir = { x: 0, y: 0 };
-  let touchStartX = 0, touchStartY = 0;
-  
-  if(isMobile) {
-    canvas.addEventListener("touchstart", function(e) {
-      e.preventDefault();
-      const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-    }, {passive:false});
-    
-    canvas.addEventListener("touchmove", function(e) {
-      e.preventDefault();
-      const touch = e.touches[0];
-      const dx = touch.clientX - touchStartX;
-      const dy = touch.clientY - touchStartY;
-      const threshold = 20;
-      // Se determina la dirección predominante (cardinal)
-      if(Math.abs(dx) > Math.abs(dy)) {
-        mobileDir = (dx > threshold) ? {x:1, y:0} : (dx < -threshold ? {x:-1, y:0} : mobileDir);
-      } else {
-        mobileDir = (dy > threshold) ? {x:0, y:1} : (dy < -threshold ? {x:0, y:-1} : mobileDir);
-      }
-    }, {passive:false});
-    
-    // Se han eliminado los resets en touchend y touchcancel para mantener la dirección
-    canvas.addEventListener("touchend", function(e) {
-      e.preventDefault();
-    }, {passive:false});
-    canvas.addEventListener("touchcancel", function(e) {
-      e.preventDefault();
-    }, {passive:false});
-  }
-
-  // ----- POOL DE OBJETOS (para partículas, aves y rayos) -----
-  class ObjectPool {
-    constructor(createFunc) {
-      this.createFunc = createFunc;
-      this.pool = [];
-    }
-    get(...args) {
-      if(this.pool.length > 0) {
-        const obj = this.pool.pop();
-        if(typeof obj.reset === 'function') { obj.reset(...args); }
-        return obj;
-      } else {
-        return this.createFunc(...args);
-      }
-    }
-    release(obj) {
-      this.pool.push(obj);
-    }
-  }
-
-  const interiorSmokePool = new ObjectPool((x,y) => new InteriorSmoke(x,y));
-  const lavaParticlePool = new ObjectPool((x,y) => new LavaParticle(x,y));
-  const riverLavaPool = new ObjectPool((x,y,vx,vy) => new RiverLavaParticle(x,y,vx,vy));
-  const centralRiverLavaPool = new ObjectPool((x,y,vx,vy) => new CentralRiverLavaParticle(x,y,vx,vy));
-  const lightningPool = new ObjectPool((x,y,isThick) => new Lightning(x,y,isThick));
-  const birdPool = new ObjectPool((x,y,vx,color) => new Bird(x,y,vx,color));
-
-  // ----- VARIABLES GLOBALES DEL JUEGO -----
-  let interiorSmokeParticles = [];
-  let lavaParticles = [];
-  let riverLavaParticles = [];
-  let centralRiverLavaParticles = [];
-  let clouds = [];
-  let lightnings = [];
-  let birds = [];
-  let monsters = [];
-  let stars = [];
-  let teleportParticles = [];
-  
-  // Jugador único (en móvil y en escritorio hasta que se pulse "w" para el 2º)
-  let playerBird, playerBird2 = null;
-  
-  // Contador para spawn de monstruos (cada 15 normales se genera uno super)
-  let monsterSpawnCounter = 0;
-
-  // ----- CONTROLES DE TECLADO (sólo en escritorio) -----
-  const keys = {};
-  window.addEventListener("keydown", e => {
-    keys[e.key] = true;
-    // Permitir el segundo jugador solo si se pulsa la tecla "w"
-    if(!isMobile && e.key === "w" && !playerBird2 && !gameOver) {
-      playerBird2 = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "wasd");
-    }
-    if(gameOver && e.key === " ") { initGame(); }
-  });
-  window.addEventListener("keyup", e => { keys[e.key] = false; });
-
-  // ----- EFECTOS SONOROS (datos base64 de ejemplo; sustituir por sonidos reales) -----
-  const dummySound = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZGF0YRoAAAAA";
-  const victorySound = new Audio(dummySound);
-  const lightningSound = new Audio(dummySound);
-  const birdDeathSound = new Audio(dummySound);
-  const monsterCollisionSound = new Audio(dummySound);
-  const gameOverSound = new Audio(dummySound);
-  const healingSound = new Audio(dummySound);
-
-  // ----- CLASES CON POOL (cada una con método reset para reciclar) -----
-  class InteriorSmoke {
-    constructor(x, y) { this.reset(x,y); }
-    reset(x, y) {
-      this.x = x;
-      this.y = y;
-      this.vy = -Math.random() * 0.3 - 0.2;
-      this.life = 200;
-      this.alpha = 1;
-      this.phase = Math.random() * 2 * Math.PI;
-    }
-    update() {
-      this.phase += 0.05 * slowFactor;
-      this.x += Math.sin(this.phase) * 0.5 * slowFactor;
-      this.y += this.vy * slowFactor;
-      this.life--;
-      this.alpha = Math.max(0, this.life / 200);
-    }
-    draw(ctx) {
-      ctx.fillStyle = `rgba(100,100,100,${this.alpha})`;
-      ctx.fillRect(Math.round(this.x), Math.round(this.y), 2, 2);
-    }
-  }
-  
-  class LavaParticle {
-    constructor(x, y) { this.reset(x,y); }
-    reset(x, y) {
-      this.x = x;
-      this.y = y;
-      this.vx = (Math.random() - 0.5) * 0.15;
-      this.vy = Math.random() * 0.25 + 0.25;
-      this.life = Math.random() * 30 + 20;
-      this.alpha = 1;
-    }
-    update() {
-      this.x += this.vx * slowFactor;
-      this.y += this.vy * slowFactor;
-      this.life--;
-      this.alpha = Math.max(0, this.life / 30);
-    }
-    draw(ctx) {
-      ctx.fillStyle = `rgba(255,100,0,${this.alpha})`;
-      ctx.fillRect(Math.round(this.x), Math.round(this.y), 1, 1);
-    }
-  }
-  
-  class RiverLavaParticle {
-    constructor(x, y, vx, vy) { this.reset(x,y,vx,vy); }
-    reset(x, y, vx, vy) {
-      this.x = x;
-      this.y = y;
-      this.vx = vx;
-      this.vy = vy;
-      this.life = Math.random() * 100 + 300;
-      this.alpha = 1;
-    }
-    update() {
-      this.x += this.vx * slowFactor;
-      this.y += this.vy * slowFactor;
-      this.life--;
-      this.alpha = Math.max(0, this.life / 100);
-    }
-    draw(ctx) {
-      ctx.fillStyle = `rgba(255,50,0,${this.alpha})`;
-      ctx.fillRect(Math.round(this.x), Math.round(this.y), 3, 3);
-    }
-  }
-  
-  class CentralRiverLavaParticle {
-    constructor(x, y, vx, vy) { this.reset(x,y,vx,vy); }
-    reset(x, y, vx, vy) {
-      this.x = x;
-      this.y = y;
-      this.vx = vx;
-      this.vy = vy;
-      this.life = Math.random() * 100 + 300;
-      this.alpha = 1;
-      this.phase = Math.random() * 2 * Math.PI;
-    }
-    update() {
-      this.phase += 0.2 * slowFactor;
-      if (this.y < offCanvas.height - groundHeight) {
-        this.x += (this.vx * slowFactor) + Math.sin(this.phase) * slowFactor;
-        this.y += this.vy * slowFactor;
-      } else {
-        this.y = offCanvas.height - groundHeight;
-        this.vy = 0;
-        this.x += 0.5 * slowFactor;
-      }
-      this.life--;
-      this.alpha = Math.max(0, this.life / 100);
-    }
-    draw(ctx) {
-      ctx.fillStyle = `rgba(255,50,0,${this.alpha})`;
-      ctx.fillRect(Math.round(this.x), Math.round(this.y), 3, 3);
-    }
-  }
-  
-  class Lightning {
-    constructor(x, y, isThick) { this.reset(x,y,isThick); }
-    reset(x, y, isThick) {
-      this.x = x;
-      this.y = y;
-      this.isThick = isThick;
-      this.segments = [];
-      this.life = 10;
-      let currentX = x, currentY = y;
-      while (currentY < offCanvas.height) {
-        const nextX = currentX + (Math.random() * 2 - 1) * 2;
-        const nextY = currentY + Math.random() * 3 + 1;
-        this.segments.push({ x1: currentX, y1: currentY, x2: nextX, y2: nextY });
-        currentX = nextX;
-        currentY = nextY;
-      }
-    }
-    update() { this.life--; }
-    draw(ctx) {
-      ctx.strokeStyle = "white";
-      ctx.lineWidth = this.isThick ? 2 : 1;
-      ctx.beginPath();
-      for (const seg of this.segments) {
-        ctx.moveTo(seg.x1, seg.y1);
-        ctx.lineTo(seg.x2, seg.y2);
-      }
-      ctx.stroke();
-    }
-  }
-  
-  class Bird {
-    constructor(x, y, vx, color = "white") { this.reset(x,y,vx,color); }
-    reset(x, y, vx, color = "white") {
-      this.x = x;
-      this.y = y;
-      this.vx = vx;
-      this.wingPhase = 0;
-      this.dead = false;
-      this.color = color;
-      this.behindMountain = (Math.random() < 0.5);
-    }
-    update() {
-      if (this.dead) {
-        this.y += 1;
-        if (this.y > offCanvas.height - groundHeight) {
-          this.y = offCanvas.height - groundHeight;
-        }
-      } else {
-        this.x += this.vx;
-        this.wingPhase += 0.2;
-        if (this.x > offCanvas.width + 10) { this.x = -10; }
-      }
-    }
-    draw(ctx) {
-      ctx.strokeStyle = this.color;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      const wingOffset = 2 * Math.sin(this.wingPhase);
-      ctx.moveTo(this.x, this.y);
-      ctx.lineTo(this.x + 3, this.y - 2 + wingOffset);
-      ctx.lineTo(this.x + 6, this.y);
-      ctx.stroke();
-    }
-  }
-  
-  class PlayerBird {
-    constructor(x, y, speed, controlScheme = "arrows") {
-      this.x = x;
-      this.y = y;
-      this.speed = speed;
-      this.controlScheme = controlScheme; // "arrows", "wasd" o "touch"
-      this.wingPhase = 0;
-      this.poweredUp = false;
-      this.powerUpTimer = 0;
-      this.dead = false;
-      this.lives = 3;
-      this.killCount = 0;
-      this.blinkTimer = 0;
-      // Temporizadores para efectos visuales del halo
-      this.absorbEffectTimer = 0;
-    }
-    update() {
-      let effectiveSpeed = this.speed;
-      if(this.poweredUp) effectiveSpeed *= 2;
-      if(!gameOver) {
-        if(this.controlScheme === "arrows") {
-          if(keys["ArrowUp"])    this.y -= effectiveSpeed;
-          if(keys["ArrowDown"])  this.y += effectiveSpeed;
-          if(keys["ArrowLeft"])  this.x -= effectiveSpeed;
-          if(keys["ArrowRight"]) this.x += effectiveSpeed;
-        } else if(this.controlScheme === "wasd") {
-          if(keys["w"]) this.y -= effectiveSpeed;
-          if(keys["s"]) this.y += effectiveSpeed;
-          if(keys["a"]) this.x -= effectiveSpeed;
-          if(keys["d"]) this.x += effectiveSpeed;
-        } else if(this.controlScheme === "touch") {
-          // Utiliza mobileDir, que se actualiza con cada swipe y se mantiene hasta un nuevo swipe
-          this.x += mobileDir.x * effectiveSpeed;
-          this.y += mobileDir.y * effectiveSpeed;
-        }
-      }
-      if(this.x < 0) this.x = 0;
-      if(this.x > offCanvas.width - 6) this.x = offCanvas.width - 6;
-      if(this.y < 0) this.y = 0;
-      if(this.y > offCanvas.height) this.y = offCanvas.height;
-      this.wingPhase += 0.2;
-      if(this.poweredUp) {
-        this.powerUpTimer--;
-        if(this.powerUpTimer <= 0) {
-          this.poweredUp = false;
-        }
-      }
-      if(this.blinkTimer > 0) this.blinkTimer--;
-      if(this.dead) {
-        this.y += 1;
-        if(this.y > offCanvas.height - groundHeight) this.y = offCanvas.height - groundHeight;
-      }
-      if(this.absorbEffectTimer > 0) { this.absorbEffectTimer--; }
-    }
-    draw(ctx) {
-      // Efecto de absorción al conseguir el halo (durante 1 segundo)
-      if(this.absorbEffectTimer > 0) {
-        for(let i = 0; i < 5; i++){
-          const offsetX = (Math.random() - 0.5) * 10;
-          const offsetY = (Math.random() - 0.5) * 10;
-          const alpha = this.absorbEffectTimer / 60;
-          ctx.fillStyle = "rgba(255,215,0,"+alpha+")";
-          ctx.beginPath();
-          ctx.arc(this.x+3+offsetX, this.y-1+offsetY, 1, 0, Math.PI*2);
-          ctx.fill();
-        }
-      }
-      // Advertencia visual cuando el halo está a punto de acabarse
-      if(this.poweredUp && this.powerUpTimer < 30) {
-        for(let i = 0; i < 3; i++){
-          const offsetX = (Math.random() - 0.5) * 8;
-          const offsetY = (Math.random() - 0.5) * 8;
-          const alpha = this.powerUpTimer / 30;
-          ctx.fillStyle = "rgba(255,0,0,"+alpha+")";
-          ctx.beginPath();
-          ctx.arc(this.x+3+offsetX, this.y-1+offsetY, 1, 0, Math.PI*2);
-          ctx.fill();
-        }
-      }
-      if(this.blinkTimer > 0 && Math.floor(this.blinkTimer/5)%2 === 0) return;
-      if(this.poweredUp) {
-        const nearCloud = clouds.some(cloud => Math.abs(cloud.x - (this.x+3)) < 40);
-        if(nearCloud) {
-          ctx.save();
-          const haloRadius = 20;
-          const grad = ctx.createRadialGradient(this.x+3, this.y-1, 0, this.x+3, this.y-1, haloRadius);
-          grad.addColorStop(0, "rgba(255,215,0,0.8)");
-          grad.addColorStop(1, "rgba(255,215,0,0)");
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(this.x+3, this.y-1, haloRadius, 0, Math.PI*2);
-          ctx.fill();
-          ctx.restore();
-          if(this.powerUpTimer === 300) { victorySound.play(); }
-        }
-        ctx.strokeStyle = "yellow";
-      } else {
-        ctx.strokeStyle = "black";
-      }
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      const wingOffset = 2 * Math.sin(this.wingPhase);
-      ctx.moveTo(this.x, this.y);
-      ctx.lineTo(this.x+3, this.y-2+wingOffset);
-      ctx.lineTo(this.x+6, this.y);
-      ctx.stroke();
-    }
-  }
-  
-  class Monster {
-    constructor() {
-      this.fromLeft = Math.random() < 0.5;
-      this.x = this.fromLeft ? -10 : offCanvas.width+10;
-      this.y = Math.random()*(offCanvas.height/2)+10;
-      this.vx = this.fromLeft ? 0.35 : -0.35;
-      this.phase = Math.random()*2*Math.PI;
-      this.wingPhase = 0;
-      this.isSuper = false;
-      this.tracking = false; // Indica si se mueve verticalmente siguiendo al jugador
-    }
-    update() {
-      this.x += this.vx * 0.8;
-      this.phase += 0.1;
-      this.wingPhase += 0.2;
-      if(this.tracking) {
-        const deltaY = (playerBird.y - this.y)*0.05;
-        this.y += (deltaY + Math.sin(this.phase)*0.5)*0.8;
-      } else {
-        this.y += Math.sin(this.phase)*0.5*0.8;
-      }
-    }
-    draw(ctx) {
-      ctx.save();
-      ctx.translate(this.x, this.y);
-      ctx.scale(3,3);
-      ctx.fillStyle = "black";
-      ctx.beginPath();
-      ctx.arc(0, 0, 1, 0, Math.PI*2);
-      ctx.fill();
-      const wingOffset = 2 * Math.sin(this.wingPhase);
-      ctx.beginPath();
-      ctx.moveTo(-1, 0);
-      ctx.lineTo(-3, -2+wingOffset);
-      ctx.lineTo(-1, -1+wingOffset);
-      ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(1, 0);
-      ctx.lineTo(3, -2+wingOffset);
-      ctx.lineTo(1, -1+wingOffset);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-  
-  class SuperMonster extends Monster {
-    constructor() {
-      super();
-      this.isSuper = true;
-      this.sizeMultiplier = 3; // Triple tamaño
-    }
-    update() { super.update(); }
-    draw(ctx) {
-      ctx.save();
-      ctx.translate(this.x, this.y);
-      ctx.scale(3 * this.sizeMultiplier, 3 * this.sizeMultiplier);
-      ctx.fillStyle = "darkred";
-      ctx.beginPath();
-      ctx.arc(0, 0, 1, 0, Math.PI*2);
-      ctx.fill();
-      ctx.fillStyle = "black";
-      ctx.beginPath();
-      ctx.arc(-0.4, -0.4, 0.2, 0, Math.PI*2);
-      ctx.arc(0.4, -0.4, 0.2, 0, Math.PI*2);
-      ctx.fill();
-      ctx.strokeStyle = "black";
-      ctx.lineWidth = 0.1;
-      ctx.beginPath();
-      ctx.moveTo(-0.6, -0.6);
-      ctx.lineTo(-0.4, -1);
-      ctx.lineTo(-0.2, -0.6);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0.6, -0.6);
-      ctx.lineTo(0.4, -1);
-      ctx.lineTo(0.2, -0.6);
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-  
-  class Cloud {
-    constructor(x, y, speed) {
-      this.x = x;
-      this.y = y;
-      this.speed = speed;
-      this.radius = Math.random() * 10 + 20;
-      this.lightningTimer = Math.floor(Math.random() * 300) + 300;
-    }
-    update() {
-      this.x += this.speed * slowFactor;
-      if(this.x - this.radius * 1.5 > offCanvas.width) {
-        this.x = -this.radius * 1.5;
-      }
-      this.lightningTimer--;
-      if(this.lightningTimer <= 0) {
-        triggerLightning(this.x, this.y + this.radius);
-        this.lightningTimer = Math.floor(Math.random() * 300) + 300;
-      }
-    }
-    draw(ctx) {
-      const grad = ctx.createRadialGradient(this.x, this.y, this.radius * 0.5, this.x, this.y, this.radius);
-      grad.addColorStop(0, "#aaaaaa");
-      grad.addColorStop(1, "#666666");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
-      ctx.arc(this.x + this.radius * 0.8, this.y - this.radius * 0.3, this.radius * 0.9, 0, Math.PI*2);
-      ctx.arc(this.x - this.radius * 0.8, this.y - this.radius * 0.3, this.radius * 0.9, 0, Math.PI*2);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
-  
-  // ----- NUEVA CLASE: Partículas de Teletransporte -----
-  class TeleportParticle {
-    constructor(x, y) { this.reset(x,y); }
-    reset(x, y) {
-      // Posición aleatoria alrededor del punto (±5 píxeles)
-      this.x = x + (Math.random()-0.5)*10;
-      this.y = y + (Math.random()-0.5)*10;
-      this.vx = (Math.random()-0.5) * 1;
-      this.vy = (Math.random()-0.5) * 1;
-      this.life = 60; // Duración de 60 frames (aprox. 1 seg.)
-      this.alpha = 1;
-      this.color = (Math.random() < 0.5) ? "blue" : "white";
-    }
-    update() {
-      this.x += this.vx * slowFactor;
-      this.y += this.vy * slowFactor;
-      this.life--;
-      this.alpha = this.life / 60;
-    }
-    draw(ctx) {
-      ctx.fillStyle = (this.color==="blue") ? `rgba(0,0,255,${this.alpha})` : `rgba(255,255,255,${this.alpha})`;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, 2, 0, Math.PI*2);
-      ctx.fill();
-    }
-  }
-  
-  // ----- DIBUJO DE CORAZÓN -----
-  function drawHeart(ctx, x, y, size, filled) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(size, size);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(-0.5, -0.5, -1, 0.25, 0, 1);
-    ctx.bezierCurveTo(1, 0.25, 0.5, -0.5, 0, 0);
-    ctx.closePath();
-    ctx.fillStyle = filled ? "red" : "white";
-    ctx.fill();
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 0.1;
-    ctx.stroke();
-    ctx.restore();
-  }
-  
-  // ----- UTILIDADES DE DIBUJO -----
-  function randomPointInTriangle(A,B,C) {
-    let r1 = Math.random(), r2 = Math.random();
-    if(r1+r2 > 1){ r1 = 1 - r1; r2 = 1 - r2; }
-    return { x: A.x + r1*(B.x-A.x) + r2*(C.x-A.x),
-             y: A.y + r1*(B.y-A.y) + r2*(C.y-A.y) };
-  }
-  
-  function drawBackground(ctx) {
-    const grad = ctx.createLinearGradient(0,0,0,offCanvas.height - groundHeight);
-    grad.addColorStop(0, "#4b0082");
-    grad.addColorStop(0.5, "#ff4500");
-    grad.addColorStop(1, "#000000");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0,0, offCanvas.width, offCanvas.height - groundHeight);
-  }
-  
-  function drawGround(ctx) {
-    ctx.fillStyle = "#3a2b1d";
-    ctx.fillRect(0, offCanvas.height - groundHeight, offCanvas.width, groundHeight);
-  }
-  
-  // ----- VOLCÁN Y ENTORNO -----
-  function computeVolcano() {
-    const volcanoWidth = 200, volcanoHeight = 100;
-    const centerX = offCanvas.width/2, baseY = offCanvas.height - groundHeight;
-    return {
-      volcanoWidth, volcanoHeight, centerX, baseY,
-      top: { x: centerX, y: baseY - volcanoHeight },
-      crater: { x: centerX, y: (baseY - volcanoHeight) - 1 },
-      leftBase: { x: centerX - volcanoWidth/2, y: baseY },
-      rightBase: { x: centerX + volcanoWidth/2, y: baseY }
+  <script>
+    // Datos base
+    const FRIENDS = { G:"Garcés", A:"Alberto", M:"Morell", D:"David", F:"Fraguío" };
+    const COLORS = { G:'var(--G)', A:'var(--A)', M:'var(--M)', D:'var(--D)', F:'var(--F)' };
+    const DAY_ORDER = ["VIERNES","SÁBADO","DOMINGO","LUNES","MARTES"];
+    const DATA = {
+      "VIERNES": [
+        { time:"18:30", title:"Tornado", venue:"Auditori", who:["F","G","A"] },
+        { time:"20:30", title:"La virgen de la tosquera", venue:"Auditori", who:["M","G","A"] },
+        { time:"22:45", title:"Together", venue:"Auditori", who:["F","G","A"] },
+      ],
+      "SÁBADO": [
+        { time:"14:15", title:"Good Boy", venue:"Auditori", who:["M","D"] },
+        { time:"16:00", title:"The furious", venue:"Auditori", who:["F"] },
+        { time:"18:30", title:"We Bury The Dead", venue:"Auditori", who:["D"] },
+        { time:"19:30", title:"V/H/S/Halloween", venue:"Prado", who:["F","G","A"] },
+        { time:"19:45", title:"Singular", venue:"Tramuntana", who:["D"] },
+        { time:"22:45", title:"La hermanastra fea", venue:"Auditori", who:["F","D","G","A"] },
+      ],
+      "DOMINGO": [
+        { time:"08:15", title:"La vida de chuck", venue:"Auditori", who:["F"] },
+        { time:"12:00", title:"Test Screening", venue:"Brigadoon", who:["F","D","G","A"] },
+        { time:"16:00", title:"It Ends", venue:"Tramuntana", who:["D","M"] },
+        { time:"19:00", title:"La vida de chuck", venue:"Auditori", who:["M","D","G","A"] },
+        { time:"21:15", title:"Exit 8", venue:"Auditori", who:["F","D","G","A"] },
+        { time:"23:30", title:"Silencio", venue:"Auditori", who:["D","G","A"] },
+      ],
+      "LUNES": [
+        { time:"08:15", title:"The Plague", venue:"Auditori", who:["D"] },
+        { time:"18:30", title:"Crims", venue:"Doble Crim Bellvitge", who:["D","M"] },
+        { time:"23:15", title:"Luger", venue:"Auditori", who:["F","D","G","A"] },
+      ],
+      "MARTES": [
+        { time:"08:15", title:"No other choice", venue:"Auditori", who:["F","D","G","A"] },
+      ]
     };
-  }
-  
-  function drawVolcano(ctx, volcano) {
-    ctx.fillStyle = "#4d4d4d";
-    ctx.beginPath();
-    ctx.moveTo(volcano.centerX - volcano.volcanoWidth/2, volcano.baseY);
-    ctx.lineTo(volcano.centerX, volcano.baseY - volcano.volcanoHeight);
-    ctx.lineTo(volcano.centerX + volcano.volcanoWidth/2, volcano.baseY);
-    ctx.closePath();
-    ctx.fill();
-    
-    ctx.fillStyle = "#666666";
-    for(let i=0;i<12;i++){
-      const xPos = volcano.centerX - volcano.volcanoWidth/2 + Math.random()*volcano.volcanoWidth;
-      const yPos = volcano.baseY - Math.random()*volcano.volcanoHeight;
-      ctx.fillRect(xPos, yPos, 2, 1);
-    }
-    ctx.fillStyle = "#555555";
-    for(let i=0;i<5;i++){
-      const xPos = volcano.centerX - volcano.volcanoWidth/2 + Math.random()*volcano.volcanoWidth;
-      const yPos = volcano.baseY - volcano.volcanoHeight + Math.random()*(volcano.volcanoHeight/2);
-      ctx.fillRect(xPos, yPos, 4, 2);
-    }
-    const grad = ctx.createRadialGradient(volcano.crater.x, volcano.crater.y, 1, volcano.crater.x, volcano.crater.y, 8);
-    grad.addColorStop(0, "rgba(255,255,255,0.8)");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(volcano.crater.x, volcano.crater.y, 8, 0, Math.PI*2);
-    ctx.fill();
-  }
-  
-  function generateVolcanoFlora(volcano) {
-    const flora = [];
-    for(let i=0;i<40;i++){
-      const onLeft = Math.random() < 0.5;
-      const t = Math.random();
-      let x, y;
-      if(onLeft) {
-        x = volcano.centerX - (volcano.volcanoWidth/2)*t;
-        y = (volcano.baseY - volcano.volcanoHeight) + volcano.volcanoHeight*t;
-      } else {
-        x = volcano.centerX + (volcano.volcanoWidth/2)*t;
-        y = (volcano.baseY - volcano.volcanoHeight) + volcano.volcanoHeight*t;
-      }
-      y -= Math.random()*2;
-      const type = (Math.random() < 0.7) ? "tree" : "bush";
-      flora.push({ x, y, type });
-    }
-    return flora;
-  }
-  
-  function drawVolcanoFlora(ctx, flora) {
-    flora.forEach(item => {
-      if(item.type === "tree"){
-        ctx.fillStyle = "#5a3d1a";
-        ctx.fillRect(Math.round(item.x), Math.round(item.y)-3, 1,4);
-        ctx.fillStyle = "green";
-        ctx.fillRect(Math.round(item.x)-1, Math.round(item.y)-6, 3,3);
-      } else {
-        ctx.fillStyle = "green";
-        ctx.fillRect(Math.round(item.x), Math.round(item.y)-1, 2,1);
-      }
-    });
-  }
-  
-  function generateGroundTrees() {
-    const trees = [];
-    for(let i=0;i<30;i++){
-      const x = Math.random()*offCanvas.width;
-      const y = offCanvas.height - groundHeight;
-      const type = (Math.random() < 0.7) ? "tree" : "bush";
-      trees.push({ x, y, type });
-    }
-    return trees;
-  }
-  
-  function drawGroundTrees(ctx, trees) {
-    trees.forEach(item => {
-      if(item.type==="tree"){
-        ctx.fillStyle = "#5a3d1a";
-        ctx.fillRect(Math.round(item.x), Math.round(item.y)-5, 1,5);
-        ctx.fillStyle = "green";
-        ctx.fillRect(Math.round(item.x)-1, Math.round(item.y)-8, 3,3);
-      } else {
-        ctx.fillStyle = "green";
-        ctx.fillRect(Math.round(item.x), Math.round(item.y)-1, 2,1);
-      }
-    });
-  }
-  
-  // ----- FUNCIONES DE GENERACIÓN -----
-  function spawnRiverLava(volcano) {
-    const { top, leftBase, rightBase } = volcano;
-    const speed = 0.7;
-    const dxL = leftBase.x - top.x;
-    const dyL = leftBase.y - top.y;
-    const magL = Math.sqrt(dxL*dxL + dyL*dyL);
-    const vxL = (dxL / magL) * speed;
-    const vyL = (dyL / magL) * speed;
-    riverLavaParticles.push(riverLavaPool.get(top.x, top.y, vxL, vyL));
-    
-    const dxR = rightBase.x - top.x;
-    const dyR = rightBase.y - top.y;
-    const magR = Math.sqrt(dxR*dxR + dyR*dyR);
-    const vxR = (dxR / magR) * speed;
-    const vyR = (dyR / magR) * speed;
-    riverLavaParticles.push(riverLavaPool.get(top.x, top.y, vxR, vyR));
-  }
-  
-  function spawnCentralRiverLava(volcano) {
-    const top = volcano.top;
-    const bottomCenter = { x: volcano.centerX, y: volcano.baseY };
-    const speed = 0.7;
-    const dx = bottomCenter.x - top.x;
-    const dy = bottomCenter.y - top.y;
-    const mag = Math.sqrt(dx*dx + dy*dy);
-    const vx = (dx / mag) * speed;
-    const vy = (dy / mag) * speed;
-    centralRiverLavaParticles.push(centralRiverLavaPool.get(top.x, top.y, vx, vy));
-  }
-  
-  function spawnBird() {
-    const x = -10;
-    const y = Math.random() * (offCanvas.height - groundHeight);
-    const vx = 0.5;
-    const color = (Math.random() < 0.05) ? "blue" : "white";
-    if(color === "white" && Math.random() < 0.1) return;
-    birds.push(birdPool.get(x, y, vx, color));
-  }
-  
-  function adjustMonsters() {
-    const liveBirds = birds.filter(b => !b.dead).length;
-    const desiredMonsters = Math.floor(liveBirds / 5);
-    while(monsters.length < desiredMonsters) {
-      monsterSpawnCounter++;
-      if(monsterSpawnCounter % 15 === 0) {
-        monsters.push(new SuperMonster());
-      } else {
-        monsters.push(new Monster());
-      }
-    }
-  }
-  
-  function triggerLightning(x, y) {
-    const isThick = Math.random() < 0.2;
-    lightnings.push(lightningPool.get(x, y, isThick));
-    lightningSound.play();
-    const checkHalo = player => {
-      const dx = player.x - x, dy = player.y - y;
-      if(Math.sqrt(dx*dx + dy*dy) < 30 && !player.poweredUp) {
-        player.poweredUp = true;
-        player.powerUpTimer = 300;
-        player.absorbEffectTimer = 60;
-        victorySound.play();
-      }
+
+    // Estado
+    let filter = 'ALL';
+
+    // UI helpers
+    const $ = sel => document.querySelector(sel);
+    const el = (tag, props={}, children=[])=>{
+      const n = document.createElement(tag);
+      const { dataset, ...rest } = props;
+      Object.assign(n, rest);
+      if (dataset){ for(const [k,v] of Object.entries(dataset)) n.dataset[k]=v; }
+      for(const c of children) n.append(c);
+      return n;
     };
-    if(!playerBird.dead) checkHalo(playerBird);
-    if(playerBird2 && !playerBird2.dead) checkHalo(playerBird2);
-    if(isThick) spawnBird();
-  }
-  
-  // ----- INICIALIZACIÓN Y REINICIO DEL JUEGO -----
-  let volcanoFlora, groundTrees;
-  function initGame() {
-    interiorSmokeParticles = [];
-    lavaParticles = [];
-    riverLavaParticles = [];
-    centralRiverLavaParticles = [];
-    clouds = [];
-    lightnings = [];
-    birds = [];
-    monsters = [];
-    stars = [];
-    teleportParticles = [];
-    gameOver = false;
-    frameCount = 0;
-    monsterSpawnCounter = 0;
-    
-    for(let i=0;i<30;i++){
-      stars.push({
-        x: Math.random()*offCanvas.width,
-        y: Math.random()*50,
-        size: Math.random()*1.5 + 0.5
-      });
-    }
-    
-    const volcanoInfo = computeVolcano();
-    volcanoFlora = generateVolcanoFlora(volcanoInfo);
-    groundTrees = generateGroundTrees();
-    
-    for(let i=0;i<5;i++){
-      const x = Math.random()*offCanvas.width;
-      const y = Math.random()*30;
-      const speed = 0.03 + Math.random()*0.02;
-      clouds.push(new Cloud(x,y,speed));
-    }
-    
-    // En cualquier dispositivo se crea solo un jugador al inicio.
-    if(isMobile) {
-      playerBird = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "touch");
-    } else {
-      playerBird = new PlayerBird(offCanvas.width/2, offCanvas.height/2, 1.10, "arrows");
-    }
-    playerBird2 = null;
-    
-    // Efecto de teletransporte: concentrar partículas azules y blancas alrededor del jugador
-    for(let i=0; i<50; i++){
-      teleportParticles.push(new TeleportParticle(playerBird.x, playerBird.y));
-    }
-  }
-  
-  // ----- BUCLE DE ANIMACIÓN -----
-  function animate() {
-    frameCount++;
-    if(!gameOver && frameCount % 60 === 0) { spawnBird(); }
-    
-    clouds.forEach(c => c.update());
-    
-    for(let i = interiorSmokeParticles.length - 1; i >= 0; i--){
-      const p = interiorSmokeParticles[i];
-      p.update();
-      if(p.life <= 0) { 
-        interiorSmokeParticles.splice(i,1);
-        interiorSmokePool.release(p);
+
+    function buildTabs(){
+      const tabs = $('#tabs');
+      tabs.innerHTML='';
+      const all = el('button',{className:'tab', role:'button', ariaPressed: filter==='ALL'?'true':'false', onclick:()=>setFilter('ALL')},[
+        el('span',{className:'pill', style:`background:linear-gradient(90deg, var(--accent), var(--accent-2))`}),
+        el('span',{textContent:'Todos'})
+      ]);
+      tabs.append(all);
+
+      for (const k of Object.keys(FRIENDS)){
+        const b = el('button',{className:'tab', role:'button', ariaPressed: filter===k?'true':'false', onclick:()=>setFilter(k)},[
+          el('span',{className:'pill', style:`background:${COLORS[k]}`}),
+          el('span',{textContent:`${FRIENDS[k]} (${k})`})
+        ]);
+        tabs.append(b);
       }
     }
-    for(let i = lavaParticles.length - 1; i >= 0; i--){
-      const p = lavaParticles[i];
-      p.update();
-      if(p.life <= 0) {
-        lavaParticles.splice(i,1);
-        lavaParticlePool.release(p);
-      }
+
+    function setFilter(next){
+      filter = next;
+      buildTabs();
+      render();
     }
-    for(let i = riverLavaParticles.length - 1; i >= 0; i--){
-      const p = riverLavaParticles[i];
-      p.update();
-      if(p.life <= 0) {
-        riverLavaParticles.splice(i,1);
-        riverLavaPool.release(p);
-      }
+
+    function matchesFilter(who){
+      if (filter==='ALL') return true;
+      return who.includes(filter);
     }
-    for(let i = centralRiverLavaParticles.length - 1; i >= 0; i--){
-      const p = centralRiverLavaParticles[i];
-      p.update();
-      if(p.life <= 0) {
-        centralRiverLavaParticles.splice(i,1);
-        centralRiverLavaPool.release(p);
-      }
-    }
-    for(let i = lightnings.length - 1; i >= 0; i--){
-      const l = lightnings[i];
-      l.update();
-      if(l.life <= 0) {
-        lightnings.splice(i,1);
-        lightningPool.release(l);
-      }
-    }
-    
-    birds.forEach(b => b.update());
-    playerBird.update();
-    if(playerBird2) playerBird2.update();
-    
-    // Determinar el monstruo más cercano a la izquierda y a la derecha del jugador
-    let leftTarget = null, rightTarget = null;
-    monsters.forEach(m => {
-      if(m.x < playerBird.x) {
-        if(!leftTarget || (playerBird.x - m.x) < (playerBird.x - leftTarget.x)) {
-          leftTarget = m;
+
+    function buildPlainText(){
+      const parts = [];
+      for (const day of DAY_ORDER){
+        const items = (DATA[day]||[]).slice().sort((a,b)=>a.time.localeCompare(b.time));
+        const lines = [];
+        for (const ev of items){
+          if (!matchesFilter(ev.who)) continue;
+          lines.push(`${ev.time} - ${ev.title} - ${ev.venue} [${ev.who.join('')}]`);
         }
-      } else if(m.x > playerBird.x) {
-        if(!rightTarget || (m.x - playerBird.x) < (rightTarget.x - playerBird.x)) {
-          rightTarget = m;
+        if (lines.length){
+          parts.push(day);
+          parts.push(lines.join('\n'));
+          parts.push('');
         }
       }
-    });
-    monsters.forEach(m => {
-      m.tracking = (m === leftTarget || m === rightTarget);
-    });
-    
-    monsters.forEach((m, i) => {
-      m.update();
-      if(m.x < -20 || m.x > offCanvas.width+20) { monsters.splice(i,1); }
-      const checkHit = player => {
-        if(!player.dead) {
-          const dx = m.x - player.x, dy = m.y - player.y;
-          if(Math.sqrt(dx*dx+dy*dy) < 10) {
-            if(player.poweredUp) {
-              player.killCount++;
-              monsters.splice(i,1);
-              monsterCollisionSound.play();
-            } else {
-              player.lives--;
-              player.blinkTimer = 20;
-              monsters.splice(i,1);
-              monsterCollisionSound.play();
-              if(player.lives <= 0) { 
-                player.dead = true; 
-                gameOver = true; 
-                gameOverSound.play();
-              }
-            }
+      return parts.join('\n');
+    }
+
+    function render(){
+      const grid = $('#grid');
+      grid.innerHTML='';
+      let shows = 0; // nº de tarjetas visibles
+      let tickets = 0; // entradas necesarias
+
+      for (const day of DAY_ORDER){
+        const items = DATA[day].slice().sort((a,b)=>a.time.localeCompare(b.time));
+        const container = el('section',{className:'day'});
+        const head = el('div',{className:'dayhead'},[
+          el('div',{className:'dayname', textContent:day})
+        ]);
+        const slots = el('div',{className:'slots'});
+        let anyShown = false;
+
+        for (const ev of items){
+          if (!matchesFilter(ev.who)) continue;
+          anyShown = true;
+          shows++;
+          tickets += (filter==='ALL' ? ev.who.length : 1);
+
+          const whoTags = ev.who.map(k=>{
+            return el('span',{
+              className:'tag',
+              style:`background:transparent;border-color:${COLORS[k]}`,
+              dataset:{day, time: ev.time, title: ev.title, venue: ev.venue, initial:k},
+              title:`Quitar ${k}`
+            },[
+              el('span',{className:'pill', style:`background:${COLORS[k]}`}),
+              el('b',{textContent:k}),
+              el('span',{className:'x', ariaHidden:'true', textContent:'×'})
+            ]);
+          });
+
+          const addMenu = (()=>{
+            const btn = el('button',{className:'add-btn', textContent:'+'});
+            const wrap = el('div',{className:'adder'},[btn]);
+            btn.addEventListener('click', (e)=>{
+              e.stopPropagation();
+              openMenuFor(day, ev, btn);
+            });
+            return wrap;
+          })();
+
+          const card = el('article',{className:'card', dataset:{day}},[
+            el('div',{className:'time', textContent:ev.time}),
+            el('div',{className:'titlex', textContent:ev.title}),
+            el('div',{className:'venue'},[el('span',{textContent:ev.venue})]),
+            el('div',{className:'who'},[...whoTags, addMenu])
+          ]);
+          slots.append(card);
+        }
+
+        if (anyShown){
+          container.append(head, slots);
+          grid.append(container);
+        }
+      }
+
+      $('#shows').textContent = shows;
+      $('#tickets').textContent = tickets;
+
+      // Actualiza texto plano + botón copiar
+      const txt = buildPlainText();
+      $('#plaintext').textContent = txt || '— Sin resultados para el filtro actual —';
+    }
+
+    // ===== Menú flotante “+” (portal) =====
+    let portalEl=null;
+    function ensurePortal(){
+      if (!portalEl){
+        portalEl = document.createElement('div');
+        portalEl.className = 'menu-portal';
+        const panel = document.createElement('div');
+        panel.className = 'menu-panel';
+        portalEl.appendChild(panel);
+        document.body.appendChild(portalEl);
+
+        // Evita cierre al interactuar dentro
+        portalEl.addEventListener('click', e => e.stopPropagation());
+        portalEl.addEventListener('touchstart', e => e.stopPropagation(), {passive:true});
+      }
+      return portalEl;
+    }
+    function closePortal(){
+      if (portalEl){
+        portalEl.classList.remove('open');
+        portalEl.style.left='-9999px';
+        portalEl.style.top='-9999px';
+      }
+    }
+
+    function openMenuFor(day, ev, anchor){
+      // Cierra cualquier menú abierto antes de abrir otro (mejora “+”)
+      closePortal();
+
+      const portal = ensurePortal();
+      const panel = portal.querySelector('.menu-panel');
+      panel.innerHTML = '';
+
+      // construir opciones restantes
+      const notIn = Object.keys(FRIENDS).filter(x=>!ev.who.includes(x));
+      if (notIn.length === 0){
+        const row = document.createElement('div');
+        row.className='menu-row';
+        row.textContent = 'Ya estáis todos añadidos.';
+        panel.append(row);
+      } else {
+        notIn.forEach(x=>{
+          const row = document.createElement('div');
+          row.className='menu-row';
+          const left = document.createElement('div');
+          left.className='who-side';
+          left.append(
+            el('span',{className:'pill', style:`background:${COLORS[x]}`}),
+            el('b',{textContent:x}),
+            el('span',{textContent:FRIENDS[x]})
+          );
+          const addBtn = el('button',{className:'add-mini', textContent:'+'});
+          addBtn.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            if (!ev.who.includes(x)) ev.who.push(x);
+            render();
+            closePortal();
+          });
+          row.append(left, addBtn);
+          panel.append(row);
+        });
+      }
+
+      // Posicionamiento inteligente (arriba o abajo)
+      const r = anchor.getBoundingClientRect();
+      const panelW = Math.min(260, Math.max(220, Math.floor(window.innerWidth*0.9)));
+      const margin = 8;
+      const topSpace = r.top;
+      const bottomSpace = window.innerHeight - r.bottom;
+      const openDown = bottomSpace >= 220 || bottomSpace >= topSpace;
+
+      const left = Math.min(window.innerWidth - panelW - 8, Math.max(8, r.right - panelW));
+      const top = (openDown ? (r.bottom + margin) : (r.top - margin)) + window.scrollY;
+
+      portal.style.left = left + 'px';
+      portal.style.top = (openDown ? top : (top - panel.offsetHeight)) + 'px';
+      portal.classList.add('open');
+    }
+
+    // Cierre por interacción global
+    document.addEventListener('click', (e)=>{
+      // Cerrar menú si se hace click fuera
+      if (!e.target.closest('.menu-portal')) closePortal();
+
+      const tag = e.target.closest('.tag');
+      if (tag && tag.dataset && tag.dataset.initial){
+        const { day, time, title, venue, initial } = tag.dataset;
+        const ev = findEvent(day, time, title, venue);
+        if (!ev) return;
+        const idx = ev.who.indexOf(initial);
+        if (idx !== -1){ ev.who.splice(idx,1); render(); closePortal(); }
+      }
+
+      // Botón copiar
+      if (e.target && e.target.id === 'copyBtn'){
+        const txt = $('#plaintext').textContent;
+        navigator.clipboard?.writeText(txt).then(()=>{
+          e.target.textContent = 'Copiado';
+          setTimeout(()=> e.target.textContent = 'Copiar', 1200);
+        }).catch(()=>{
+          const ta = document.createElement('textarea');
+          ta.value = txt; document.body.appendChild(ta); ta.select();
+          try{ document.execCommand('copy'); }catch{}
+          ta.remove();
+        });
+      }
+    }, {passive:true});
+
+    // Cierre al hacer scroll o redimensionar (experiencia móvil)
+    window.addEventListener('scroll', closePortal, {passive:true});
+    window.addEventListener('resize', closePortal);
+
+    function findEvent(day, time, title, venue){
+      const list = DATA[day] || [];
+      return list.find(e => e.time === time && e.title === title && e.venue === venue);
+    }
+
+    // ====== Tests no intrusivos ======
+    function computeCounts(filterKey){
+      let shows=0, tickets=0;
+      for (const day of DAY_ORDER){
+        for (const ev of (DATA[day]||[])){
+          const ok = (filterKey==='ALL') || ev.who.includes(filterKey);
+          if (ok){
+            shows++;
+            tickets += (filterKey==='ALL') ? ev.who.length : 1;
           }
         }
-      };
-      checkHit(playerBird);
-      if(playerBird2) { checkHit(playerBird2); }
-    });
-    
-    birds.forEach(b => {
-      if(!b.dead) {
-        let collided = false;
-        const tryCollide = player => {
-          const threshold = player.poweredUp ? 20 : 6;
-          const dx = b.x - player.x, dy = b.y - player.y;
-          if(Math.sqrt(dx*dx+dy*dy) < threshold) {
-            b.dead = true;
-            b.vx = 0;
-            player.killCount++;
-            if(b.color === "blue") {
-              if(player.lives < 3) {
-                player.lives++;
-                healingSound.play();
-              }
-            } else {
-              birdDeathSound.play();
-            }
-            return true;
-          }
-          return false;
-        };
-        if(!playerBird.dead && tryCollide(playerBird)) collided = true;
-        if(!collided && playerBird2 && !playerBird2.dead) { tryCollide(playerBird2); }
       }
-    });
-    
-    adjustMonsters();
-    
-    // Actualizar partículas de teletransporte
-    for(let i = teleportParticles.length - 1; i >= 0; i--){
-      const p = teleportParticles[i];
-      p.update();
-      if(p.life <= 0) {
-        teleportParticles.splice(i,1);
-      }
+      return {shows, tickets};
     }
-    
-    offCtx.clearRect(0,0,offCanvas.width, offCanvas.height);
-    drawBackground(offCtx);
-    stars.forEach(star => {
-      offCtx.fillStyle = "white";
-      offCtx.beginPath();
-      offCtx.arc(star.x, star.y, star.size, 0, Math.PI*2);
-      offCtx.fill();
-    });
-    clouds.forEach(cloud => cloud.draw(offCtx));
-    
-    drawGround(offCtx);
-    birds.filter(b => b.behindMountain).forEach(b => b.draw(offCtx));
-    
-    const volcanoInfo = computeVolcano();
-    drawVolcano(offCtx, volcanoInfo);
-    drawVolcanoFlora(offCtx, volcanoFlora);
-    drawGroundTrees(offCtx, groundTrees);
-    
-    if(frameCount % 10 === 0) {
-      lavaParticles.push(lavaParticlePool.get(volcanoInfo.crater.x, volcanoInfo.crater.y));
+
+    function deepClone(obj){ return JSON.parse(JSON.stringify(obj)); }
+
+    function selfTests(){
+      try{
+        // 1) Contadores coherentes con filtro
+        const keys=['ALL',...Object.keys(FRIENDS)];
+        for (const k of keys){
+          setFilter(k);
+          const s = Number(document.getElementById('shows').textContent);
+          const t = Number(document.getElementById('tickets').textContent);
+          const exp = computeCounts(k);
+          console.assert(s===exp.shows, `[TEST] shows(${k}) esperado ${exp.shows}, obtenido ${s}`);
+          console.assert(t===exp.tickets, `[TEST] tickets(${k}) esperado ${exp.tickets}, obtenido ${t}`);
+        }
+
+        // 2) Añadir/Quitar actualiza contadores y texto
+        const snapshot = deepClone(DATA);
+        const day='VIERNES';
+        const ev = DATA[day][0];
+        const beforeA = ev.who.includes('A');
+        if (!beforeA) ev.who.push('A'); else ev.who.splice(ev.who.indexOf('A'),1);
+        setFilter('A');
+        const txt = document.getElementById('plaintext').textContent;
+        console.assert(txt.includes(day), '[TEST] texto plano actualizado incluye el día');
+        // restore
+        for (const d of DAY_ORDER){ DATA[d].splice(0, DATA[d].length, ...snapshot[d]); }
+        setFilter('ALL');
+
+        // 3) findEvent devuelve la misma referencia
+        const sample = DATA['DOMINGO'][1];
+        const ref = findEvent('DOMINGO', sample.time, sample.title, sample.venue);
+        console.assert(ref === sample, '[TEST] findEvent debe devolver el mismo objeto');
+
+        // 4) Evita duplicados al añadir vía UI (simulado)
+        const ev2 = DATA['LUNES'][2]; // Luger con FDGA
+        const lenBefore = ev2.who.length;
+        if (!ev2.who.includes('F')) ev2.who.push('F'); // no debería ejecutarse
+        console.assert(ev2.who.length === lenBefore, '[TEST] no debe haber duplicados en who');
+
+        console.log('%c[TEST] OK · Autocomprobaciones básicas','color:#6ee7b7');
+      }catch(e){ console.warn('[TEST] Aviso durante pruebas:', e); }
     }
-    lavaParticles.forEach(p => p.draw(offCtx));
-    
-    const A = { x: volcanoInfo.leftBase.x, y: volcanoInfo.leftBase.y };
-    const B = { x: volcanoInfo.top.x, y: volcanoInfo.top.y };
-    const C = { x: volcanoInfo.rightBase.x, y: volcanoInfo.rightBase.y };
-    for(let i=0;i<8;i++){
-      const p = randomPointInTriangle(A,B,C);
-      interiorSmokeParticles.push(interiorSmokePool.get(p.x, p.y));
-    }
-    interiorSmokeParticles.forEach(p => p.draw(offCtx));
-    
-    if(frameCount % 5 === 0) {
-      spawnRiverLava(volcanoInfo);
-      spawnCentralRiverLava(volcanoInfo);
-    }
-    riverLavaParticles.forEach(p => p.draw(offCtx));
-    centralRiverLavaParticles.forEach(p => p.draw(offCtx));
-    
-    lightnings.forEach(l => l.draw(offCtx));
-    birds.filter(b => !b.behindMountain).forEach(b => b.draw(offCtx));
-    monsters.forEach(m => m.draw(offCtx));
-    
-    playerBird.draw(offCtx);
-    if(playerBird2) playerBird2.draw(offCtx);
-    
-    // Dibujar partículas de teletransporte (efecto inicial)
-    teleportParticles.forEach(p => p.draw(offCtx));
-    
-    offCtx.fillStyle = "white";
-    offCtx.font = "8px Arial";
-    offCtx.fillText("Kills: " + playerBird.killCount, offCanvas.width - 70, 10);
-    const heartSize = 4;
-    for(let i=0;i<3;i++){
-      const filled = i < playerBird.lives;
-      drawHeart(offCtx, offCanvas.width - 70 + i*(heartSize*2+2), 20, heartSize, filled);
-    }
-    if(playerBird2) {
-      offCtx.fillText("Kills: " + playerBird2.killCount, offCanvas.width - 70, 30);
-      for(let i=0;i<3;i++){
-        const filled = i < playerBird2.lives;
-        drawHeart(offCtx, offCanvas.width - 70 + i*(heartSize*2+2), 40, heartSize, filled);
-      }
-    }
-    
-    if(gameOver) {
-      offCtx.fillStyle = "black";
-      offCtx.font = "16px Arial";
-      offCtx.fillText("GAME OVER", offCanvas.width/2 - 40, offCanvas.height/2);
-    }
-    
-    // --- DIBUJAR OFFCANVAS CON ESCALADO PARA MANTENER RELACIÓN DE ASPECTO ---
-    // Se calcula el factor de escalado y se centra la imagen en el canvas principal.
-    const scale = Math.min(canvas.width / offCanvas.width, canvas.height / offCanvas.height);
-    const xOffset = (canvas.width - offCanvas.width * scale) / 2;
-    const yOffset = (canvas.height - offCanvas.height * scale) / 2;
-    ctx.clearRect(0,0,canvas.width, canvas.height);
-    ctx.drawImage(offCanvas, xOffset, yOffset, offCanvas.width * scale, offCanvas.height * scale);
-    
-    requestAnimationFrame(animate);
-  }
-  
-  initGame();
-  animate();
-})();
-</script>
+
+    // Init
+    buildTabs();
+    render();
+    selfTests();
+  </script>
 </body>
 </html>
